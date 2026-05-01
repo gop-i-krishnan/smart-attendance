@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from app.config import settings
 from app.api.v1.routes import health
+from app.core.database import engine, Base
+import app.models 
 
 app = FastAPI(
     title=settings.app_name,
