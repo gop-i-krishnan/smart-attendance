@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Attendance Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+
+    .navbar {
+      background: #1a73e8; color: white; padding: 16px 32px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .navbar h1 { font-size: 20px; font-weight: 600; }
+    .navbar span { font-size: 14px; opacity: 0.85; }
+
+    .container { max-width: 900px; margin: 32px auto; padding: 0 16px; }
+
+    .login-card {
+      background: white; border-radius: 12px; padding: 32px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08); max-width: 400px; margin: 60px auto;
+    }
+    .login-card h2 { margin-bottom: 20px; color: #1a73e8; }
+    input {
+      width: 100%; padding: 10px 14px; margin-bottom: 14px;
+      border: 1px solid #ddd; border-radius: 8px; font-size: 14px;
+    }
+    button {
+      width: 100%; padding: 11px; background: #1a73e8; color: white;
+      border: none; border-radius: 8px; font-size: 15px; cursor: pointer;
+    }
+    button:hover { background: #1558b0; }
+
+    .card {
+      background: white; border-radius: 12px; padding: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07); margin-bottom: 20px;
+    }
+    .card h2 { font-size: 18px; margin-bottom: 18px; color: #1a73e8; }
+
+    .stat-row { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .stat {
+      flex: 1; min-width: 120px; background: #f8f9ff; border-radius: 10px;
+      padding: 16px; text-align: center; border: 1px solid #e8eaf6;
+    }
+    .stat .number { font-size: 28px; font-weight: 700; color: #1a73e8; }
+    .stat .label { font-size: 12px; color: #888; margin-top: 4px; }
+
+    .student-card {
+      background: #f8f9ff; border-radius: 10px; padding: 16px;
+      margin-bottom: 12px; border: 1px solid #e8eaf6;
+    }
+    .student-header {
+      display: flex; justify-content: space-between;
+      align-items: center; margin-bottom: 10px;
+    }
+    .student-header .name { font-weight: 600; font-size: 15px; }
+    .student-header .pct {
+      font-weight: 700; font-size: 16px;
+      color: var(--pct-color, #1a73e8);
+    }
+
+    .progress-bar {
+      background: #e0e0e0; border-radius: 99px; height: 10px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 99px;
+      background: var(--fill-color, #1a73e8);
+      transition: width 0.6s ease;
+    }
+
+    .meta { font-size: 12px; color: #888; margin-top: 8px; }
+    .export-btn {
+      width: auto; padding: 6px 14px; font-size: 13px;
+      background: #34a853; margin-top: 10px;
+    }
+    .export-btn:hover { background: #2d8f47; }
+
+    .error { color: #d93025; font-size: 13px; margin-top: 8px; }
+    #dashboard { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="navbar">
+  <h1>📋 Smart Attendance Platform</h1>
+  <span id="nav-user"></span>
+</div>
+
+<!-- Login Section -->
+<div id="login-section">
+  <div class="login-card">
+    <h2>Login</h2>
+    <input type="email" id="email" placeholder="Email address" />
+    <input type="password" id="password" placeholder="Password" />
+    <button onclick="login()">Login</button>
+    <p class="error" id="login-error"></p>
+  </div>
+</div>
+
+<!-- Dashboard Section -->
+<div id="dashboard">
+  <div class="container">
+
+    <div class="card">
+      <h2>📊 Overall Statistics</h2>
+      <div class="stat-row">
+        <div class="stat">
+          <div class="number" id="total-students">-</div>
+          <div class="label">Total Students</div>
+        </div>
+        <div class="stat">
+          <div class="number" id="avg-pct">-</div>
+          <div class="label">Avg Attendance %</div>
+        </div>
+        <div class="stat">
+          <div class="number" id="below-75">-</div>
+          <div class="label">Below 75%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>👥 Student Attendance</h2>
+      <div id="students-list">Loading...</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const API = 'http://localhost:8000/api/v1';
+  let token = '';
+
+  async function login() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+
+    const form = new URLSearchParams();
+    form.append('username', email);
+    form.append('password', password);
+
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form
+    });
+
+    if (!res.ok) {
+      document.getElementById('login-error').textContent = 'Invalid email or password';
+      return;
+    }
+
+    const data = await res.json();
+    token = data.access_token;
+
+    document.getElementById('login-section').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('nav-user').textContent = email;
+
+    loadDashboard();
+  }
+
+  async function loadDashboard() {
+    const res = await fetch(`${API}/reports/summary/all`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const summaries = await res.json();
+
+    // Stats
+    const total = summaries.length;
+    const avgPct = total > 0
+      ? (summaries.reduce((s, x) => s + x.percentage, 0) / total).toFixed(1)
+      : 0;
+    const below75 = summaries.filter(s => s.percentage < 75).length;
+
+    document.getElementById('total-students').textContent = total;
+    document.getElementById('avg-pct').textContent = avgPct + '%';
+    document.getElementById('below-75').textContent = below75;
+
+    // Student cards
+    const list = document.getElementById('students-list');
+    if (summaries.length === 0) {
+      list.innerHTML = '<p style="color:#888">No students found.</p>';
+      return;
+    }
+
+    list.innerHTML = summaries.map(s => {
+      const pct = s.percentage;
+      const color = pct >= 75 ? '#34a853' : pct >= 50 ? '#fbbc04' : '#d93025';
+      return `
+        <div class="student-card">
+          <div class="student-header">
+            <span class="name">🎓 ${s.roll_number} — ${s.department}</span>
+            <span class="pct" style="color:${color}">${pct}%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:${pct}%;background:${color}"></div>
+          </div>
+          <div class="meta">
+            Present: ${s.present} &nbsp;|&nbsp;
+            Absent: ${s.absent} &nbsp;|&nbsp;
+            Late: ${s.late} &nbsp;|&nbsp;
+            Total: ${s.total_classes}
+          </div>
+          <button class="export-btn"
+            onclick="exportCSV(${s.student_id})">
+            ⬇ Export CSV
+          </button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function exportCSV(studentId) {
+    const res = await fetch(`${API}/reports/student/${studentId}/csv`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `student_${studentId}_attendance.csv`;
+    a.click();
+  }
+</script>
+</body>
+</html>
