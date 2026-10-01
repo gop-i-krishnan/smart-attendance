@@ -1,32 +1,29 @@
 from sqlalchemy.orm import Session
-from datetime import date as date_type
 from fastapi import HTTPException
 from starlette import status as http_status
-from app.repositories import attendance_repository, student_repository, class_repository
+from app.repositories import attendance_repository, student_repository, class_session_repository
 from app.models.attendance import AttendanceStatus
 
-def mark_attendance(db: Session, student_id: int, class_id: int,
-                    attendance_date: date_type, att_status: AttendanceStatus):
-
+def mark_attendance(db: Session, student_id: int, class_session_id: int, att_status: AttendanceStatus):
     student = student_repository.get_student_by_id(db, student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    class_ = class_repository.get_class_by_id(db, class_id)
-    if not class_:
-        raise HTTPException(status_code=404, detail="Class not found")
+    session_record = class_session_repository.get_class_session(db, class_session_id)
+    if not session_record:
+        raise HTTPException(status_code=404, detail="Class session not found")
 
     existing = attendance_repository.get_attendance_record(
-        db, student_id, class_id, attendance_date
+        db, student_id, class_session_id
     )
     if existing:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
-            detail="Attendance already marked for this student on this date"
+            detail="Attendance already marked for this student in this session"
         )
 
     return attendance_repository.create_attendance(
-        db, student_id, class_id, attendance_date, att_status
+        db, student_id, class_session_id, att_status
     )
 
 def get_student_summary(db: Session, student_id: int):

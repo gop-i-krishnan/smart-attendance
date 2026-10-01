@@ -14,4 +14,4 @@ class Class(Base):
     teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     teacher = relationship("User")
-    attendance_records = relationship("Attendance", back_populates="class_")
+    class_sessions = relationship("ClassSession", back_populates="class_")

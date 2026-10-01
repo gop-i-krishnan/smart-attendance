@@ -1,18 +1,15 @@
 from pydantic import BaseModel
-from datetime import date
 from app.models.attendance import AttendanceStatus
 
 class AttendanceCreate(BaseModel):
     student_id: int
-    class_id: int
-    date: date
+    class_session_id: int
     status: AttendanceStatus
 
 class AttendanceOut(BaseModel):
     id: int
     student_id: int
-    class_id: int
-    date: date
+    class_session_id: int
     status: AttendanceStatus
 
     class Config:

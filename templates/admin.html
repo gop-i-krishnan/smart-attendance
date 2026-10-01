@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureTrack X — Admin Portal</title>
+  <meta name="description" content="Admin portal — manage users, classes, academic calendar and schedule.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --primary:#6366f1; --primary-dark:#4f46e5; --accent:#06b6d4;
+      --danger:#ef4444; --success:#10b981; --warn:#f59e0b;
+      --bg:#0f0f1a; --surface:#1a1a2e; --surface2:#22223b; --surface3:#2d2d4e;
+      --border:rgba(99,102,241,0.2); --text:#e2e8f0; --muted:#94a3b8;
+    }
+    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+    .layout { display:flex; min-height:100vh; }
+
+    .sidebar {
+      width:240px; background:var(--surface); border-right:1px solid var(--border);
+      padding:24px 16px; display:flex; flex-direction:column; gap:4px; flex-shrink:0;
+    }
+    .sidebar-brand { display:flex; align-items:center; gap:10px; padding:12px 12px 24px; }
+    .brand-icon { font-size:22px; }
+    .brand-text { font-size:15px; font-weight:700; }
+    .brand-text span { color:var(--accent); }
+    .nav-section { font-size:10px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; padding:12px 12px 4px; }
+    .nav-item {
+      display:flex; align-items:center; gap:10px; padding:9px 12px;
+      border-radius:8px; cursor:pointer; font-size:13px; font-weight:500;
+      color:var(--muted); transition:all 0.15s;
+    }
+    .nav-item:hover, .nav-item.active { background:var(--surface2); color:var(--text); }
+    .nav-item.active { color:var(--primary); }
+    .sidebar-footer { margin-top:auto; padding-top:16px; border-top:1px solid var(--border); }
+    .user-chip { display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--surface2); border-radius:10px; font-size:12px; }
+    .avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--danger),var(--warn)); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; }
+
+    .main { flex:1; overflow-y:auto; }
+    .topbar {
+      background:var(--surface); border-bottom:1px solid var(--border);
+      padding:16px 32px; display:flex; justify-content:space-between; align-items:center;
+      position:sticky; top:0; z-index:10;
+    }
+    .topbar h1 { font-size:16px; font-weight:600; }
+    .badge-admin { padding:4px 10px; border-radius:99px; font-size:11px; font-weight:600; background:rgba(239,68,68,.15); color:var(--danger); }
+    .logout-btn { padding:6px 14px; background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--muted); cursor:pointer; font-size:12px; font-family:inherit; }
+    .logout-btn:hover { border-color:var(--danger); color:var(--danger); }
+    .content { padding:32px; }
+
+    /* Stats */
+    .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+    .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:8px; }
+    .stat-icon { font-size:22px; }
+    .stat-value { font-size:28px; font-weight:800; }
+    .stat-label { font-size:11px; color:var(--muted); font-weight:500; }
+
+    /* Card */
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; margin-bottom:24px; }
+    .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .card-title { font-size:15px; font-weight:600; }
+
+    /* Forms */
+    .form-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; }
+    .form-grid .full { grid-column:1/-1; }
+    .field label { font-size:11px; color:var(--muted); display:block; margin-bottom:5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+    input, select, textarea {
+      width:100%; padding:10px 14px; background:var(--surface2); border:1px solid var(--border);
+      border-radius:9px; color:var(--text); font-size:13px; font-family:inherit;
+    }
+    input:focus, select:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(99,102,241,.15); }
+
+    .btn { padding:9px 20px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; border:none; transition:all 0.15s; }
+    .btn-primary { background:var(--primary); color:white; }
+    .btn-primary:hover { background:var(--primary-dark); }
+    .btn-success { background:var(--success); color:white; }
+    .btn-ghost { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { border-color:var(--primary); color:var(--primary); }
+
+    .form-msg { font-size:12px; margin-top:10px; }
+    .form-msg.ok  { color:var(--success); }
+    .form-msg.err { color:var(--danger);  }
+
+    /* Table */
+    table { width:100%; border-collapse:collapse; }
+    th { text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; padding:10px 12px; border-bottom:1px solid var(--border); }
+    td { padding:11px 12px; border-bottom:1px solid rgba(255,255,255,.04); font-size:13px; }
+    tr:hover td { background:rgba(99,102,241,.03); }
+    .role-badge { padding:3px 10px; border-radius:99px; font-size:10px; font-weight:700; }
+    .role-admin   { background:rgba(239,68,68,.15);  color:var(--danger); }
+    .role-teacher { background:rgba(99,102,241,.15); color:var(--primary); }
+    .role-student { background:rgba(6,182,212,.15);  color:var(--accent); }
+    .risk-badge { padding:3px 10px; border-radius:99px; font-size:10px; font-weight:700; }
+    .risk-safe    { background:rgba(16,185,129,.15); color:var(--success); }
+    .risk-warning { background:rgba(245,158,11,.15); color:var(--warn); }
+    .risk-danger  { background:rgba(239,68,68,.15);  color:var(--danger); }
+    .pct-bar { width:90px; background:var(--surface2); border-radius:99px; height:6px; overflow:hidden; }
+    .pct-fill { height:100%; border-radius:99px; }
+
+    /* Sections */
+    .section { display:none; }
+    .section.visible { display:block; animation:fadein .2s ease; }
+    @keyframes fadein { from { opacity:0; } }
+    .empty { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+    .loading { text-align:center; padding:30px; color:var(--muted); }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🎓</div>
+      <div class="brand-text">Secure<span>Track</span> X</div>
+    </div>
+    <div class="nav-section">Administration</div>
+    <div class="nav-item active" onclick="showSec('overview')">🏠 Overview</div>
+    <div class="nav-item" onclick="showSec('users')">👥 Users</div>
+    <div class="nav-item" onclick="showSec('classes')">📚 Classes</div>
+    <div class="nav-item" onclick="showSec('calendar')">📅 Academic Calendar</div>
+    <div class="nav-item" onclick="showSec('analytics')">📊 Full Analytics</div>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar">A</div>
+        <div>
+          <div style="font-weight:600;font-size:12px" id="admin-email">—</div>
+          <div style="color:var(--muted);font-size:10px">Administrator</div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="page-title">System Overview</h1>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px" id="topbar-sub">SecureTrack X Admin Panel</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="badge-admin">Admin</span>
+        <button class="logout-btn" onclick="logout()">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Overview -->
+      <div class="section visible" id="sec-overview">
+        <div class="stats-row">
+          <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value" id="o-students">—</div><div class="stat-label">Students</div></div>
+          <div class="stat-card"><div class="stat-icon">📚</div><div class="stat-value" id="o-classes">—</div><div class="stat-label">Classes</div></div>
+          <div class="stat-card"><div class="stat-icon">🚨</div><div class="stat-value" id="o-danger">—</div><div class="stat-label">Danger Zone</div></div>
+          <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-value" id="o-events">—</div><div class="stat-label">Calendar Events</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">🚨 Students Requiring Attention (Risk: Danger)</div></div>
+          <table>
+            <thead><tr><th>Roll No.</th><th>Department</th><th>%</th><th>Need</th><th>Risk</th></tr></thead>
+            <tbody id="danger-tbody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div class="section" id="sec-users">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">👥 Register New User</div>
+          </div>
+          <div class="form-grid">
+            <div class="field"><label>Full Name</label><input id="u-name" placeholder="e.g. Joy George" /></div>
+            <div class="field"><label>Email</label><input type="email" id="u-email" placeholder="e.g. joy@rset.edu" /></div>
+            <div class="field"><label>Password</label><input type="password" id="u-pass" placeholder="Min 8 chars" /></div>
+            <div class="field">
+              <label>Role</label>
+              <select id="u-role">
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:16px" onclick="registerUser()">Register User</button>
+          <div class="form-msg" id="user-msg"></div>
+        </div>
+      </div>
+
+      <!-- Classes -->
+      <div class="section" id="sec-classes">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📚 Create New Class / Subject</div></div>
+          <div class="form-grid">
+            <div class="field"><label>Subject Name</label><input id="c-name" placeholder="e.g. Advanced Database Systems" /></div>
+            <div class="field"><label>Code</label><input id="c-code" placeholder="e.g. CS302" /></div>
+            <div class="field"><label>Department</label><input id="c-dept" placeholder="e.g. CSE" /></div>
+            <div class="field"><label>Teacher ID</label><input type="number" id="c-teacher" placeholder="User ID of teacher" /></div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:16px" onclick="createClass()">Create Class</button>
+          <div class="form-msg" id="class-msg"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📋 All Classes</div><button class="btn btn-ghost" onclick="loadClasses()">🔄 Refresh</button></div>
+          <table>
+            <thead><tr><th>ID</th><th>Name</th><th>Code</th><th>Department</th><th>Teacher ID</th></tr></thead>
+            <tbody id="classes-tbody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Academic Calendar -->
+      <div class="section" id="sec-calendar">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📅 Add Academic Event</div></div>
+          <div class="form-grid">
+            <div class="field full"><label>Event Title</label><input id="ev-title" placeholder="e.g. Internal Examination-1" /></div>
+            <div class="field"><label>Event Type</label>
+              <select id="ev-type">
+                <option value="holiday">🏖️ Holiday</option>
+                <option value="exam">📝 Exam</option>
+                <option value="other">📌 Other</option>
+              </select>
+            </div>
+            <div class="field"><label>Description</label><input id="ev-desc" placeholder="Optional description" /></div>
+            <div class="field"><label>Start Date</label><input type="date" id="ev-start" /></div>
+            <div class="field"><label>End Date</label><input type="date" id="ev-end" /></div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:16px" onclick="addEvent()">Add to Calendar</button>
+          <div class="form-msg" id="event-msg"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📋 Calendar Events</div><button class="btn btn-ghost" onclick="loadEventsAdmin()">🔄 Refresh</button></div>
+          <div id="events-list"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- Full Analytics -->
+      <div class="section" id="sec-analytics">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📊 Full Attendance Risk Report</div>
+            <button class="btn btn-ghost" onclick="loadFullAnalytics()">🔄 Refresh</button>
+          </div>
+          <table>
+            <thead>
+              <tr><th>Roll No.</th><th>Department</th><th>Sem</th><th>%</th><th>Progress</th><th>Risk</th><th>Can Miss</th><th>Need</th><th>Export</th></tr>
+            </thead>
+            <tbody id="full-analytics-tbody"><tr><td colspan="9" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const API   = window.location.origin + '/api/v1';
+  const token = sessionStorage.getItem('token');
+  const email = sessionStorage.getItem('email');
+  if (!token) window.location.href = '/';
+
+  document.getElementById('admin-email').textContent = email || '—';
+
+  function h(extra={}) { return { 'Authorization': `Bearer ${token}`, ...extra }; }
+  function logout() { sessionStorage.clear(); window.location.href = '/'; }
+
+  const secTitles = { overview:'System Overview', users:'User Management', classes:'Class Management', calendar:'Academic Calendar', analytics:'Full Analytics Report' };
+
+  function showSec(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('sec-' + id).classList.add('visible');
+    event.currentTarget.classList.add('active');
+    document.getElementById('page-title').textContent = secTitles[id];
+    if (id === 'classes')   loadClasses();
+    if (id === 'calendar')  loadEventsAdmin();
+    if (id === 'analytics') loadFullAnalytics();
+  }
+
+  // ── Bootstrap overview ────────────────────────────────────────────────────
+  async function loadOverview() {
+    const [stuRes, clsRes, evtRes, anRes] = await Promise.all([
+      fetch(`${API}/students/`, { headers: h() }),
+      fetch(`${API}/classes/`,  { headers: h() }),
+      fetch(`${API}/calendar/`, { headers: h() }),
+      fetch(`${API}/analytics/risk/all`, { headers: h() })
+    ]);
+    const [students, classes_, events, analytics] = await Promise.all([stuRes.json(), clsRes.json(), evtRes.json(), anRes.json()]);
+
+    document.getElementById('o-students').textContent = students.length;
+    document.getElementById('o-classes').textContent  = classes_.length;
+    document.getElementById('o-events').textContent   = events.length;
+    const danger = analytics.filter(a => a.risk === 'danger');
+    document.getElementById('o-danger').textContent = danger.length;
+
+    const pctColor = p => p >= 85 ? 'var(--success)' : p >= 75 ? 'var(--warn)' : 'var(--danger)';
+    document.getElementById('danger-tbody').innerHTML = danger.length === 0
+      ? '<tr><td colspan="5" class="empty">No students in danger zone 🎉</td></tr>'
+      : danger.map(s => `
+          <tr>
+            <td><strong>${s.roll_number}</strong></td>
+            <td>${s.department}</td>
+            <td style="font-weight:700;color:${pctColor(s.percentage)}">${s.percentage}%</td>
+            <td style="color:var(--danger)">${s.classes_to_recover > 0 ? s.classes_to_recover + ' classes' : '—'}</td>
+            <td><span class="risk-badge risk-danger">danger</span></td>
+          </tr>`).join('');
+  }
+
+  // ── Users ─────────────────────────────────────────────────────────────────
+  async function registerUser() {
+    const msg = document.getElementById('user-msg');
+    const payload = {
+      full_name: document.getElementById('u-name').value,
+      email:     document.getElementById('u-email').value,
+      password:  document.getElementById('u-pass').value,
+      role:      document.getElementById('u-role').value
+    };
+    const res = await fetch(`${API}/auth/register`, {
+      method: 'POST', headers: h({'Content-Type':'application/json'}), body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (res.ok) { msg.textContent = `✅ User "${data.full_name}" registered (ID: ${data.id}).`; msg.className = 'form-msg ok'; }
+    else        { msg.textContent = `❌ ${data.detail || 'Failed.'}`; msg.className = 'form-msg err'; }
+  }
+
+  // ── Classes ───────────────────────────────────────────────────────────────
+  async function createClass() {
+    const msg = document.getElementById('class-msg');
+    const payload = {
+      name: document.getElementById('c-name').value,
+      code: document.getElementById('c-code').value,
+      department: document.getElementById('c-dept').value,
+      teacher_id: parseInt(document.getElementById('c-teacher').value)
+    };
+    const res = await fetch(`${API}/classes/`, {
+      method: 'POST', headers: h({'Content-Type':'application/json'}), body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (res.ok) { msg.textContent = `✅ Class "${data.name}" (${data.code}) created.`; msg.className = 'form-msg ok'; loadClasses(); }
+    else        { msg.textContent = `❌ ${data.detail || 'Failed.'}`; msg.className = 'form-msg err'; }
+  }
+
+  async function loadClasses() {
+    const res = await fetch(`${API}/classes/`, { headers: h() });
+    const classes_ = await res.json();
+    document.getElementById('classes-tbody').innerHTML = classes_.length === 0
+      ? '<tr><td colspan="5" class="empty">No classes yet.</td></tr>'
+      : classes_.map(c => `<tr><td>${c.id}</td><td><strong>${c.name}</strong></td><td>${c.code}</td><td>${c.department}</td><td>${c.teacher_id}</td></tr>`).join('');
+  }
+
+  // ── Calendar ──────────────────────────────────────────────────────────────
+  async function addEvent() {
+    const msg = document.getElementById('event-msg');
+    const payload = {
+      title:       document.getElementById('ev-title').value,
+      event_type:  document.getElementById('ev-type').value,
+      description: document.getElementById('ev-desc').value || null,
+      start_date:  document.getElementById('ev-start').value,
+      end_date:    document.getElementById('ev-end').value
+    };
+    if (!payload.title || !payload.start_date || !payload.end_date) {
+      msg.textContent = '⚠️ Fill title, start and end date.'; msg.className = 'form-msg err'; return;
+    }
+    const res = await fetch(`${API}/calendar/`, {
+      method: 'POST', headers: h({'Content-Type':'application/json'}), body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (res.ok) { msg.textContent = `✅ Event "${data.title}" added.`; msg.className = 'form-msg ok'; loadEventsAdmin(); }
+    else        { msg.textContent = `❌ ${data.detail || 'Failed.'}`; msg.className = 'form-msg err'; }
+  }
+
+  async function loadEventsAdmin() {
+    const res = await fetch(`${API}/calendar/`, { headers: h() });
+    if (!res.ok) return;
+    const events = await res.json();
+    const typeColor = { holiday:'var(--danger)', exam:'var(--primary)', other:'var(--accent)' };
+    document.getElementById('events-list').innerHTML = events.length === 0
+      ? '<div class="empty">No events.</div>'
+      : events.map(e => `
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--surface2);border-radius:10px;margin-bottom:8px;border-left:4px solid ${typeColor[e.event_type]||'var(--muted)'}">
+            <div style="font-size:18px">${e.event_type==='holiday'?'🏖️':e.event_type==='exam'?'📝':'📌'}</div>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600">${e.title}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">${e.start_date} → ${e.end_date} · ${e.event_type}</div>
+              ${e.description ? `<div style="font-size:11px;color:var(--muted)">${e.description}</div>` : ''}
+            </div>
+          </div>`).join('');
+  }
+
+  // ── Full Analytics ────────────────────────────────────────────────────────
+  async function loadFullAnalytics() {
+    const tbody = document.getElementById('full-analytics-tbody');
+    tbody.innerHTML = '<tr><td colspan="9" class="loading">Loading…</td></tr>';
+    const res = await fetch(`${API}/analytics/risk/all`, { headers: h() });
+    if (!res.ok) { tbody.innerHTML = '<tr><td colspan="9" class="empty">Failed.</td></tr>'; return; }
+    const data = await res.json();
+    const pctColor = p => p >= 85 ? 'var(--success)' : p >= 75 ? 'var(--warn)' : 'var(--danger)';
+    tbody.innerHTML = data.length === 0
+      ? '<tr><td colspan="9" class="empty">No data.</td></tr>'
+      : data.map(s => `
+          <tr>
+            <td><strong>${s.roll_number}</strong></td>
+            <td>${s.department}</td>
+            <td>${s.semester}</td>
+            <td style="font-weight:700;color:${pctColor(s.percentage)}">${s.percentage}%</td>
+            <td><div class="pct-bar"><div class="pct-fill" style="width:${s.percentage}%;background:${pctColor(s.percentage)}"></div></div></td>
+            <td><span class="risk-badge risk-${s.risk}">${s.risk}</span></td>
+            <td style="color:var(--success)">${s.classes_can_miss}</td>
+            <td style="color:var(--danger)">${s.classes_to_recover > 0 ? s.classes_to_recover : '—'}</td>
+            <td><button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;" onclick="dlCSV(${s.student_id})">⬇</button></td>
+          </tr>`).join('');
+  }
+
+  async function dlCSV(id) {
+    const res = await fetch(`${API}/analytics/student/${id}/csv`, { headers: h() });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download=`student_${id}.csv`; a.click();
+  }
+
+  loadOverview();
+</script>
+</body>
+</html>

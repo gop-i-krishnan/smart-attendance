@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from datetime import date as date_type
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_teacher
 from app.schemas.attendance import AttendanceCreate, AttendanceOut, AttendanceSummary
@@ -18,8 +17,7 @@ def mark_attendance(
     return attendance_service.mark_attendance(
         db,
         student_id=data.student_id,
-        class_id=data.class_id,
-        attendance_date=data.date,
+        class_session_id=data.class_session_id,
         att_status=data.status
     )
 
@@ -39,13 +37,12 @@ def get_student_summary(
 ):
     return attendance_service.get_student_summary(db, student_id)
 
-@router.get("/class/{class_id}/date/{att_date}", response_model=list[AttendanceOut])
-def get_class_attendance_by_date(
-    class_id: int,
-    att_date: date_type,
+@router.get("/session/{class_session_id}", response_model=list[AttendanceOut])
+def get_session_attendance(
+    class_session_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
 ):
-    return attendance_repository.get_attendance_by_class_and_date(
-        db, class_id, att_date
+    return attendance_repository.get_attendance_by_class_session(
+        db, class_session_id
     )

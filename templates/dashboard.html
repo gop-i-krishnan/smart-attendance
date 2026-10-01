@@ -126,6 +126,43 @@
       <div id="students-list">Loading...</div>
     </div>
 
+    <div class="card" id="calendar-card">
+      <h2>📅 Academic Calendar</h2>
+      <div id="calendar-list">Loading...</div>
+    </div>
+
+    <div class="card" id="timetable-card">
+      <h2>🗓️ Timetable (Class 1)</h2>
+      <div id="timetable-list">Loading...</div>
+    </div>
+
+    <!-- TEACHER TOOLS SECTION -->
+    <div class="card" id="teacher-tools" style="display:none; border: 2px solid #1a73e8;">
+      <h2>👨‍🏫 Teacher Tools: Daily Sessions</h2>
+      
+      <div style="margin-bottom: 16px;">
+        <label for="session-date">Date:</label>
+        <input type="date" id="session-date" style="width: auto; margin-right: 10px;" />
+        <button onclick="generateAndLoadSessions()" style="width: auto; padding: 6px 14px; margin-right: 10px;">Load / Generate Sessions</button>
+      </div>
+
+      <div id="teacher-sessions-list"></div>
+      
+      <div id="mark-attendance-section" style="display:none; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+        <h3>Mark Attendance for Session <span id="current-session-id"></span></h3>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <input type="number" id="mark-student-id" placeholder="Student ID" style="width:120px;" />
+          <select id="mark-status" style="padding:10px; border-radius:8px; border:1px solid #ddd;">
+            <option value="present">Present</option>
+            <option value="absent">Absent</option>
+            <option value="late">Late</option>
+          </select>
+          <button onclick="markManualAttendance()" style="width: auto;">Submit Attendance</button>
+        </div>
+        <p id="mark-msg" style="margin-top:10px; font-size:13px;"></p>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -163,6 +200,21 @@
   }
 
   async function loadDashboard() {
+    loadAttendance();
+    loadCalendar();
+    loadTimetable(1); // Load for class 1 by default, or could be dynamic
+    
+    // Default the date picker to today
+    document.getElementById('session-date').valueAsDate = new Date();
+    
+    // Check if the user is a teacher or admin (simple check via email for now, ideally via JWT payload)
+    const email = document.getElementById('email').value;
+    if (email.includes('teacher') || email.includes('admin')) {
+        document.getElementById('teacher-tools').style.display = 'block';
+    }
+  }
+
+  async function loadAttendance() {
     const res = await fetch(`${API}/reports/summary/all`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -211,6 +263,140 @@
         </div>
       `;
     }).join('');
+  }
+
+  async function loadCalendar() {
+    const res = await fetch(`${API}/calendar/`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if(!res.ok) {
+       document.getElementById('calendar-list').innerHTML = '<p style="color:#888">Error loading calendar.</p>';
+       return;
+    }
+    const events = await res.json();
+    const list = document.getElementById('calendar-list');
+    if (events.length === 0) {
+      list.innerHTML = '<p style="color:#888">No events found.</p>';
+      return;
+    }
+    list.innerHTML = events.map(e => `
+        <div class="student-card" style="border-left: 4px solid #1a73e8;">
+          <div class="student-header">
+            <span class="name">📅 ${e.title}</span>
+            <span class="pct" style="color:#888; font-size:12px;">${e.event_type}</span>
+          </div>
+          <div class="meta">
+            From: ${e.start_date} &nbsp;|&nbsp; To: ${e.end_date} <br/>
+            ${e.description ? e.description : ''}
+          </div>
+        </div>
+      `).join('');
+  }
+
+  async function loadTimetable(classId) {
+    const res = await fetch(`${API}/timetable/class/${classId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if(!res.ok) {
+       document.getElementById('timetable-list').innerHTML = '<p style="color:#888">Error loading timetable.</p>';
+       return;
+    }
+    const timetables = await res.json();
+    const list = document.getElementById('timetable-list');
+    if (timetables.length === 0) {
+      list.innerHTML = '<p style="color:#888">No timetable found.</p>';
+      return;
+    }
+    list.innerHTML = timetables.map(t => `
+        <div class="student-card" style="border-left: 4px solid #34a853;">
+          <div class="student-header">
+            <span class="name">⏰ ${t.day_of_week}</span>
+          </div>
+          <div class="meta">
+            Time: ${t.start_time} - ${t.end_time} &nbsp;|&nbsp; Room: ${t.room || 'N/A'}
+          </div>
+        </div>
+      `).join('');
+  }
+
+  async function generateAndLoadSessions() {
+    const date = document.getElementById('session-date').value;
+    if (!date) return alert("Please select a date.");
+    
+    // Generate sessions (POST /session/generate-daily/{date})
+    const res = await fetch(`${API}/session/generate-daily/${date}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if(!res.ok) {
+      document.getElementById('teacher-sessions-list').innerHTML = '<p class="error">Failed to load/generate sessions.</p>';
+      return;
+    }
+    
+    const sessions = await res.json();
+    const list = document.getElementById('teacher-sessions-list');
+    
+    if (sessions.length === 0) {
+      list.innerHTML = '<p style="color:#888">No sessions planned for this date.</p>';
+      return;
+    }
+    
+    list.innerHTML = sessions.map(s => {
+      const isCancelled = s.session_type === 'cancelled';
+      const color = isCancelled ? '#d93025' : '#1a73e8';
+      return `
+        <div class="student-card" style="border-left: 4px solid ${color};">
+          <div class="student-header">
+            <span class="name">📚 Class ID: ${s.class_id} (Session #${s.id})</span>
+            <span class="pct" style="color:${color}; font-size:13px; text-transform:uppercase;">${s.session_type}</span>
+          </div>
+          <div class="meta">
+            Time: ${s.start_time} - ${s.end_time} &nbsp;|&nbsp; Room: ${s.room || 'N/A'}
+          </div>
+          ${!isCancelled ? `<button class="export-btn" style="background:#1a73e8; margin-top:10px;" onclick="openAttendancePanel(${s.id})">Mark Attendance</button>` : ''}
+        </div>
+      `;
+    }).join('');
+  }
+
+  function openAttendancePanel(sessionId) {
+    document.getElementById('mark-attendance-section').style.display = 'block';
+    document.getElementById('current-session-id').textContent = sessionId;
+    document.getElementById('mark-msg').textContent = '';
+  }
+
+  async function markManualAttendance() {
+    const sessionId = document.getElementById('current-session-id').textContent;
+    const studentId = document.getElementById('mark-student-id').value;
+    const status = document.getElementById('mark-status').value;
+    
+    if(!studentId || !sessionId) return;
+
+    const payload = {
+      student_id: parseInt(studentId),
+      class_session_id: parseInt(sessionId),
+      status: status
+    };
+
+    const res = await fetch(`${API}/attendance/mark`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const msgBox = document.getElementById('mark-msg');
+    if (res.ok) {
+      msgBox.textContent = `✅ Successfully marked Student ${studentId} as ${status}!`;
+      msgBox.style.color = '#34a853';
+    } else {
+      const err = await res.json();
+      msgBox.textContent = `❌ Error: ${err.detail || 'Failed to mark'}`;
+      msgBox.style.color = '#d93025';
+    }
   }
 
   async function exportCSV(studentId) {

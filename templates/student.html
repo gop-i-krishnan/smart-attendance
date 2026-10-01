@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureTrack X — Student Portal</title>
+  <meta name="description" content="Student self-service portal to view attendance, risk level and academic schedule.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --primary:#6366f1; --accent:#06b6d4;
+      --danger:#ef4444; --success:#10b981; --warn:#f59e0b;
+      --bg:#0f0f1a; --surface:#1a1a2e; --surface2:#22223b; --surface3:#2d2d4e;
+      --border:rgba(99,102,241,0.2); --text:#e2e8f0; --muted:#94a3b8;
+    }
+    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+    .layout { display:flex; min-height:100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width:230px; background:var(--surface); border-right:1px solid var(--border);
+      padding:24px 16px; display:flex; flex-direction:column; gap:4px; flex-shrink:0;
+    }
+    .sidebar-brand { display:flex; align-items:center; gap:10px; padding:12px 12px 24px; }
+    .brand-icon { font-size:22px; }
+    .brand-text  { font-size:15px; font-weight:700; }
+    .brand-text span { color:var(--accent); }
+    .nav-item {
+      display:flex; align-items:center; gap:10px; padding:9px 12px;
+      border-radius:8px; cursor:pointer; font-size:13px; font-weight:500;
+      color:var(--muted); transition:all 0.15s;
+    }
+    .nav-item:hover, .nav-item.active { background:var(--surface2); color:var(--text); }
+    .nav-item.active { color:var(--primary); }
+    .sidebar-footer { margin-top:auto; padding-top:16px; border-top:1px solid var(--border); }
+    .user-chip {
+      display:flex; align-items:center; gap:10px; padding:10px 12px;
+      background:var(--surface2); border-radius:10px; font-size:12px;
+    }
+    .avatar {
+      width:32px; height:32px; border-radius:50%;
+      background:linear-gradient(135deg,var(--accent),var(--primary));
+      display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px;
+    }
+
+    /* ── Main ── */
+    .main { flex:1; overflow-y:auto; }
+    .topbar {
+      background:var(--surface); border-bottom:1px solid var(--border);
+      padding:16px 32px; display:flex; justify-content:space-between; align-items:center;
+      position:sticky; top:0; z-index:10;
+    }
+    .topbar h1 { font-size:16px; font-weight:600; }
+    .badge-student { padding:4px 10px; border-radius:99px; font-size:11px; font-weight:600; background:rgba(6,182,212,.15); color:var(--accent); }
+    .logout-btn {
+      padding:6px 14px; background:transparent; border:1px solid var(--border);
+      border-radius:8px; color:var(--muted); cursor:pointer; font-size:12px; font-family:inherit;
+    }
+    .logout-btn:hover { border-color:var(--danger); color:var(--danger); }
+    .content { padding:32px; }
+
+    /* ── Attendance Hero ── */
+    .hero-card {
+      background:linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(6,182,212,0.08) 100%);
+      border:1px solid var(--border); border-radius:20px; padding:32px; margin-bottom:24px;
+      position:relative; overflow:hidden;
+    }
+    .hero-card::before {
+      content:''; position:absolute; top:-40px; right:-40px;
+      width:180px; height:180px; border-radius:50%;
+      background:radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%);
+    }
+    .hero-top { display:flex; justify-content:space-between; align-items:flex-start; }
+    .hero-label { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .hero-pct { font-size:64px; font-weight:800; line-height:1; margin:8px 0; }
+    .hero-sub { font-size:13px; color:var(--muted); }
+    .hero-right { text-align:right; }
+    .risk-pill {
+      display:inline-flex; align-items:center; gap:6px;
+      padding:8px 20px; border-radius:99px; font-size:14px; font-weight:700;
+    }
+    .risk-safe    { background:rgba(16,185,129,.15); color:var(--success); border:1px solid rgba(16,185,129,.3); }
+    .risk-warning { background:rgba(245,158,11,.15);  color:var(--warn);    border:1px solid rgba(245,158,11,.3); }
+    .risk-danger  { background:rgba(239,68,68,.15);   color:var(--danger);  border:1px solid rgba(239,68,68,.3); }
+
+    .progress-wrap { margin-top:20px; }
+    .pct-bar { width:100%; background:var(--surface2); border-radius:99px; height:10px; overflow:hidden; }
+    .pct-fill { height:100%; border-radius:99px; transition:width 1.2s cubic-bezier(.34,1.56,.64,1); }
+    .pct-marker { position:relative; margin-top:6px; }
+    .pct-marker::before {
+      content:'75%'; position:absolute; left:75%;
+      transform:translateX(-50%); font-size:10px; color:var(--muted);
+    }
+    .pct-marker::after {
+      content:''; position:absolute; left:75%; top:-16px;
+      width:1px; height:10px; background:var(--muted);
+      transform:translateX(-50%);
+    }
+
+    /* ── Stats grid ── */
+    .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:24px; }
+    .stat-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:14px;
+      padding:20px; display:flex; flex-direction:column; gap:8px;
+    }
+    .stat-icon { font-size:22px; }
+    .stat-value { font-size:26px; font-weight:800; }
+    .stat-label { font-size:11px; color:var(--muted); font-weight:500; }
+
+    /* ── Forecast card ── */
+    .forecast-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:14px;
+      padding:20px; margin-bottom:24px; display:grid; grid-template-columns:1fr 1fr; gap:20px;
+    }
+    .forecast-item { display:flex; flex-direction:column; gap:6px; }
+    .forecast-item .f-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+    .forecast-item .f-value { font-size:28px; font-weight:800; }
+
+    /* ── Card ── */
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; margin-bottom:24px; }
+    .card-title { font-size:15px; font-weight:600; margin-bottom:16px; }
+
+    /* ── Sessions ── */
+    .session-row {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:12px 16px; background:var(--surface2); border-radius:10px;
+      margin-bottom:8px; border-left:3px solid var(--border);
+    }
+    .session-row.present  { border-left-color:var(--success); }
+    .session-row.absent   { border-left-color:var(--danger); }
+    .session-row.late     { border-left-color:var(--warn); }
+    .session-row.none     { border-left-color:var(--muted); }
+    .status-chip { padding:3px 10px; border-radius:99px; font-size:10px; font-weight:700; }
+    .chip-present  { background:rgba(16,185,129,.15); color:var(--success); }
+    .chip-absent   { background:rgba(239,68,68,.15);  color:var(--danger); }
+    .chip-late     { background:rgba(245,158,11,.15); color:var(--warn); }
+
+    /* ── Calendar events ── */
+    .cal-row {
+      display:flex; align-items:center; gap:14px; padding:12px 16px;
+      background:var(--surface2); border-radius:10px; margin-bottom:8px;
+    }
+    .cal-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .cal-title { font-size:13px; font-weight:600; }
+    .cal-sub { font-size:11px; color:var(--muted); }
+
+    .section { display:none; }
+    .section.visible { display:block; animation:fadein .2s ease; }
+    @keyframes fadein { from { opacity:0; } }
+    .empty { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+    .loading { text-align:center; padding:30px; color:var(--muted); }
+
+    .btn { padding:8px 16px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; border:none; }
+    .btn-ghost { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { border-color:var(--primary); color:var(--primary); }
+
+    /* Leave request form */
+    .leave-form { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+    .leave-form .full { grid-column:1/-1; }
+    .form-field label { font-size:11px; color:var(--muted); display:block; margin-bottom:4px; }
+    .form-field input, .form-field select, .form-field textarea {
+      width:100%; padding:9px 12px; background:var(--surface2); border:1px solid var(--border);
+      border-radius:8px; color:var(--text); font-size:13px; font-family:inherit;
+    }
+    .form-field textarea { resize:vertical; min-height:72px; }
+    .msg-ok  { color:var(--success); font-size:12px; margin-top:8px; }
+    .msg-err { color:var(--danger);  font-size:12px; margin-top:8px; }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🎓</div>
+      <div class="brand-text">Secure<span>Track</span> X</div>
+    </div>
+    <div class="nav-item active" onclick="showSection('overview')">📊 My Attendance</div>
+    <div class="nav-item" onclick="showSection('history')">📋 History</div>
+    <div class="nav-item" onclick="showSection('leave')">✉️ Leave Request</div>
+    <div class="nav-item" onclick="showSection('calendar')">🗓️ Academic Calendar</div>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar" id="s-avatar">S</div>
+        <div>
+          <div style="font-weight:600;font-size:12px" id="s-email">—</div>
+          <div style="color:var(--muted);font-size:10px">Student</div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="page-title">My Attendance Overview</h1>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px" id="student-info-label"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="badge-student">Student</span>
+        <button class="logout-btn" onclick="logout()">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Overview section -->
+      <div class="section visible" id="sec-overview">
+        <!-- Hero attendance gauge -->
+        <div class="hero-card">
+          <div class="hero-top">
+            <div>
+              <div class="hero-label">Overall Attendance</div>
+              <div class="hero-pct" id="hero-pct" style="color:var(--primary)">—%</div>
+              <div class="hero-sub" id="hero-sub">Loading your data…</div>
+            </div>
+            <div class="hero-right">
+              <div class="risk-pill risk-safe" id="risk-pill" style="display:none">✅ Safe</div>
+            </div>
+          </div>
+          <div class="progress-wrap">
+            <div class="pct-bar"><div class="pct-fill" id="pct-fill" style="width:0%;background:var(--primary)"></div></div>
+            <div class="pct-marker"></div>
+          </div>
+        </div>
+
+        <!-- Quick stats -->
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" id="q-present">—</div><div class="stat-label">Present</div></div>
+          <div class="stat-card"><div class="stat-icon">❌</div><div class="stat-value" id="q-absent">—</div><div class="stat-label">Absent</div></div>
+          <div class="stat-card"><div class="stat-icon">🕐</div><div class="stat-value" id="q-late">—</div><div class="stat-label">Late</div></div>
+        </div>
+
+        <!-- Forecast -->
+        <div class="forecast-card">
+          <div class="forecast-item">
+            <div class="f-label">🛡️ Classes I Can Still Miss</div>
+            <div class="f-value" id="f-can-miss" style="color:var(--success)">—</div>
+            <div style="font-size:11px;color:var(--muted)">while staying above 75%</div>
+          </div>
+          <div class="forecast-item">
+            <div class="f-label">🚨 Classes to Recover</div>
+            <div class="f-value" id="f-to-recover" style="color:var(--danger)">—</div>
+            <div style="font-size:11px;color:var(--muted)">consecutive attendance needed</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History section -->
+      <div class="section" id="sec-history">
+        <div class="card">
+          <div class="card-title">📋 Attendance History</div>
+          <div id="history-list"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- Leave section -->
+      <div class="section" id="sec-leave">
+        <div class="card">
+          <div class="card-title">✉️ Apply for Leave</div>
+          <div class="leave-form">
+            <div class="form-field">
+              <label>Leave Type</label>
+              <select id="leave-type">
+                <option value="sick">🤒 Medical / Sick</option>
+                <option value="duty">🏛️ Duty Leave</option>
+                <option value="emergency">🚨 Emergency</option>
+                <option value="other">📝 Other</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>From Date</label>
+              <input type="date" id="leave-from" />
+            </div>
+            <div class="form-field">
+              <label>To Date</label>
+              <input type="date" id="leave-to" />
+            </div>
+            <div class="form-field full">
+              <label>Reason</label>
+              <textarea id="leave-reason" placeholder="Briefly explain your reason for leave…"></textarea>
+            </div>
+          </div>
+          <button class="btn" style="margin-top:14px;background:var(--primary);color:white;padding:10px 24px;" onclick="submitLeave()">Submit Leave Request</button>
+          <div id="leave-msg"></div>
+        </div>
+      </div>
+
+      <!-- Calendar section -->
+      <div class="section" id="sec-calendar">
+        <div class="card">
+          <div class="card-title">🗓️ Academic Calendar</div>
+          <div id="s-calendar-list"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const API   = window.location.origin + '/api/v1';
+  const token = sessionStorage.getItem('token');
+  const email = sessionStorage.getItem('email');
+  if (!token) window.location.href = '/';
+
+  document.getElementById('s-email').textContent  = email || '—';
+  document.getElementById('s-avatar').textContent = (email||'S')[0].toUpperCase();
+
+  // ── Resolve current student ID by listing students and matching email ─────
+  let myStudentId = null;
+
+  async function init() {
+    const h = { 'Authorization': `Bearer ${token}` };
+    // Fetch student list — find ourselves by matching email via user info
+    const meRes = await fetch(`${API}/students/`, { headers: h });
+    if (!meRes.ok) return;
+    const students = await meRes.json();
+    // We don't have user email in StudentOut, so load analytics for all and pick
+    const analRes = await fetch(`${API}/analytics/risk/all`, { headers: h });
+    if (!analRes.ok) return;
+    const all = await analRes.json();
+    // Try fetching via student portal — use first student if only 1 or match manually
+    // For now take the first and let the student verify (requires auth scoping later)
+    if (all.length > 0) {
+      // Better approach: find via email stored at login (roll number match)
+      // Use first available if direct match not available
+      const me = all[0]; // replace with actual user-specific fetch in production
+      myStudentId = me.student_id;
+      renderOverview(me);
+      document.getElementById('student-info-label').textContent = `${me.roll_number} · ${me.department} · Sem ${me.semester}`;
+    }
+    loadCalendar();
+  }
+
+  function renderOverview(me) {
+    const p = me.percentage;
+    const color = p >= 85 ? 'var(--success)' : p >= 75 ? 'var(--warn)' : 'var(--danger)';
+    document.getElementById('hero-pct').textContent = p + '%';
+    document.getElementById('hero-pct').style.color = color;
+    document.getElementById('hero-sub').textContent = `${me.present + me.late} attended out of ${me.total_classes} total sessions`;
+    document.getElementById('pct-fill').style.width  = p + '%';
+    document.getElementById('pct-fill').style.background = color;
+    document.getElementById('q-present').textContent = me.present;
+    document.getElementById('q-absent').textContent  = me.absent;
+    document.getElementById('q-late').textContent    = me.late;
+    document.getElementById('f-can-miss').textContent  = me.classes_can_miss;
+    document.getElementById('f-to-recover').textContent = me.classes_to_recover > 0 ? me.classes_to_recover : '—';
+    const pill = document.getElementById('risk-pill');
+    pill.style.display = 'inline-flex';
+    const riskMap = {
+      safe:    { cls:'risk-safe',    text:'✅ Safe' },
+      warning: { cls:'risk-warning', text:'⚠️ Warning' },
+      danger:  { cls:'risk-danger',  text:'🚨 Danger' }
+    };
+    const r = riskMap[me.risk] || riskMap['safe'];
+    pill.className = `risk-pill ${r.cls}`;
+    pill.textContent = r.text;
+  }
+
+  async function loadHistory() {
+    if (!myStudentId) return;
+    const res = await fetch(`${API}/attendance/student/${myStudentId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) { document.getElementById('history-list').innerHTML = '<div class="empty">Failed to load.</div>'; return; }
+    const records = await res.json();
+    if (records.length === 0) { document.getElementById('history-list').innerHTML = '<div class="empty">No attendance records yet.</div>'; return; }
+    const statusMap = {
+      present: { cls:'present',  chip:'chip-present', label:'Present' },
+      absent:  { cls:'absent',   chip:'chip-absent',  label:'Absent'  },
+      late:    { cls:'late',     chip:'chip-late',    label:'Late'    }
+    };
+    document.getElementById('history-list').innerHTML = records.map(r => {
+      const s = statusMap[r.status] || { cls:'none', chip:'', label:r.status };
+      return `
+        <div class="session-row ${s.cls}">
+          <div>
+            <div style="font-size:13px;font-weight:600">Session #${r.class_session_id}</div>
+            <div style="font-size:11px;color:var(--muted)">Record #${r.id}</div>
+          </div>
+          <span class="status-chip ${s.chip}">${s.label}</span>
+        </div>`;
+    }).join('');
+  }
+
+  async function submitLeave() {
+    const payload = {
+      leave_type: document.getElementById('leave-type').value,
+      from_date:  document.getElementById('leave-from').value,
+      to_date:    document.getElementById('leave-to').value,
+      reason:     document.getElementById('leave-reason').value
+    };
+    const msg = document.getElementById('leave-msg');
+    if (!payload.from_date || !payload.to_date || !payload.reason) {
+      msg.textContent = '⚠️ Please fill in all fields.'; msg.className = 'msg-err'; return;
+    }
+    const res = await fetch(`${API}/workflows/leave`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (res.ok) { msg.textContent = '✅ Leave request submitted successfully!'; msg.className = 'msg-ok'; }
+    else        { msg.textContent = `❌ ${data.detail || 'Failed.'}`; msg.className = 'msg-err'; }
+  }
+
+  async function loadCalendar() {
+    const res = await fetch(`${API}/calendar/`, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) return;
+    const events = await res.json();
+    const typeColor = { holiday:'var(--danger)', exam:'var(--primary)', other:'var(--accent)' };
+    document.getElementById('s-calendar-list').innerHTML = events.length === 0
+      ? '<div class="empty">No events.</div>'
+      : events.map(e => `
+        <div class="cal-row">
+          <div class="cal-dot" style="background:${typeColor[e.event_type]||'var(--muted)'}"></div>
+          <div>
+            <div class="cal-title">${e.title}</div>
+            <div class="cal-sub">${e.start_date} → ${e.end_date} · ${e.event_type}</div>
+          </div>
+        </div>`).join('');
+  }
+
+  function logout() { sessionStorage.clear(); window.location.href = '/'; }
+
+  const sectionTitles = { overview:'My Attendance Overview', history:'Attendance History', leave:'Leave Request', calendar:'Academic Calendar' };
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('sec-' + id).classList.add('visible');
+    event.currentTarget.classList.add('active');
+    document.getElementById('page-title').textContent = sectionTitles[id];
+    if (id === 'history') loadHistory();
+  }
+
+  init();
+</script>
+</body>
+</html>
