@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_teacher
+from app.core.dependencies import require_student_access, require_teacher
 from app.schemas.attendance import AttendanceCreate, AttendanceOut, AttendanceSummary
 from app.services import attendance_service
 from app.repositories import attendance_repository
@@ -25,7 +25,7 @@ def mark_attendance(
 def get_student_attendance(
     student_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(require_student_access)
 ):
     return attendance_repository.get_attendance_by_student(db, student_id)
 
@@ -33,7 +33,7 @@ def get_student_attendance(
 def get_student_summary(
     student_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(require_student_access)
 ):
     return attendance_service.get_student_summary(db, student_id)
 

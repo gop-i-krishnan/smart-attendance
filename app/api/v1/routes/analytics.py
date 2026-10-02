@@ -3,7 +3,7 @@ import io
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_teacher
+from app.core.dependencies import require_student_access, require_teacher
 from app.repositories import student_repository, attendance_repository
 from app.services import analytics_service
 
@@ -23,7 +23,7 @@ def all_risk_report(
 def student_analytics(
     student_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(require_student_access)
 ):
     """Detailed analytics + shortage prediction for a student."""
     data = analytics_service.get_detailed_student_analytics(db, student_id)
@@ -50,7 +50,7 @@ def class_analytics(
 def export_student_csv(
     student_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(require_student_access)
 ):
     """Export full attendance history as a CSV file."""
     records = attendance_repository.get_attendance_by_student(db, student_id)

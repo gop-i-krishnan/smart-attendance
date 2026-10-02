@@ -87,7 +87,7 @@ def open_class_session(
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
 ):
-    return class_session_repository.open_session(db, session_id)
+    return class_session_repository.open_session(db, session_id, current_user)
 
 @router.post("/{session_id}/close", response_model=ClassSessionOut)
 def close_class_session(
@@ -95,7 +95,7 @@ def close_class_session(
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
 ):
-    return class_session_repository.close_session(db, session_id)
+    return class_session_repository.close_session(db, session_id, current_user)
 
 @router.put("/{session_id}/cancel", response_model=ClassSessionOut)
 def cancel_class_session(
@@ -104,7 +104,7 @@ def cancel_class_session(
     current_user=Depends(require_teacher)
 ):
     """Cancel a class session."""
-    return cancel_session(db, session_id)
+    return cancel_session(db, session_id, current_user)
 
 @router.put("/{session_id}/substitute", response_model=ClassSessionOut)
 def substitute_class_session(

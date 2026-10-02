@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import date as date_type
 from app.models.class_session import ClassSession, SessionType, ClassSessionStatus
 from app.schemas.class_session import ClassSessionCreate
+from app.models.user import UserRole
 
 
 def get_class_session(db: Session, session_id: int):
@@ -43,27 +44,75 @@ def get_sessions_for_date(db: Session, target_date: date_type):
     return db.query(ClassSession).filter(ClassSession.date == target_date).all()
 
 
-def open_session(db: Session, session_id: int):
+def open_session(
+    db: Session,
+    session_id: int,
+    requesting_user
+):
     session = get_class_session(db, session_id)
+
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Session not found"
+        )
+
     if session.session_type == SessionType.cancelled:
-        raise HTTPException(status_code=400, detail="Cancelled sessions cannot be opened")
+        raise HTTPException(
+            status_code=400,
+            detail="Cancelled sessions cannot be opened"
+        )
+
+    # Only the currently assigned teacher or an admin
+    # may open this session.
+    if (
+        requesting_user.role != UserRole.admin
+        and session.actual_teacher_id != requesting_user.id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to modify this session"
+        )
+
     session.status = ClassSessionStatus.conducted.value
     session.is_open = True
+
     db.commit()
     db.refresh(session)
+
     return session
 
 
-def close_session(db: Session, session_id: int):
+def close_session(
+    db: Session,
+    session_id: int,
+    requesting_user
+):
     session = get_class_session(db, session_id)
+
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Session not found"
+        )
+
+    # Only the currently assigned teacher or an admin
+    # may close this session.
+    if (
+        requesting_user.role != UserRole.admin
+        and session.actual_teacher_id != requesting_user.id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to modify this session"
+        )
+
     session.is_open = False
     session.status = ClassSessionStatus.conducted.value
+
     db.commit()
     db.refresh(session)
+
     return session
 
 

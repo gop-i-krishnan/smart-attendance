@@ -11,22 +11,24 @@ from app.core.database import Base
 from app.models.academic_event import AcademicEvent, EventType
 from app.models.attendance import Attendance, AttendanceStatus
 from app.models.class_ import Class
-from app.models.class_session import ClassSession, SessionType
+from app.models.class_session import ClassSession, SessionType, ClassSessionStatus
 from app.models.student import Student
 from app.models.timetable import Timetable
 from app.models.user import User, UserRole
-from app.repositories import academic_event_repository, class_session_repository, timetable_repository
+from app.repositories import academic_event_repository, class_session_repository, timetable_repository, student_repository
 from app.repositories.notice_repository import create_notice, get_active_notices
 from app.schemas.academic_event import AcademicEventCreate
 from app.schemas.class_session import ClassSessionCreate
 from app.schemas.notice import NoticeCreate
 from app.schemas.timetable import TimetableCreate
 from app.services.assistant_service import build_ai_assistant_summary
+from app.services.schedule_service import cancel_session, substitute_session
 from seed_demo_data import COURSE_KEY_TO_CODE, FIXED_WEEKLY_PLAN, PERIODS
 
 from app.schemas.user import UserCreate
 from app.services import auth_service
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_admin, require_student_access
+from app.api.v1.routes.students import list_students
 
 
 @pytest.fixture
@@ -152,10 +154,10 @@ def test_session_can_be_opened_and_closed(db_session: Session):
     db_session.commit()
     db_session.refresh(session)
 
-    opened = class_session_repository.open_session(db_session, session.id)
+    opened = class_session_repository.open_session(db_session, session.id, class_obj.teacher)
     assert opened.is_open is True
 
-    closed = class_session_repository.close_session(db_session, session.id)
+    closed = class_session_repository.close_session(db_session, session.id, class_obj.teacher)
     assert closed.is_open is False
 
 
@@ -265,3 +267,590 @@ def test_inactive_user_cannot_use_existing_token(db_session: Session):
         get_current_user(token=token, db=db_session)
 
     assert exc_info.value.status_code == 403
+    
+def test_student_cannot_list_all_students(db_session: Session):
+    student_user = User(
+        full_name="Student User",
+        email="student-list@example.com",
+        hashed_password="hashed",
+        role=UserRole.student,
+    )
+    db_session.add(student_user)
+    db_session.commit()
+    db_session.refresh(student_user)
+
+    student = Student(
+        user_id=student_user.id,
+        roll_number="CSE2001",
+        department="CSE",
+        semester=5,
+    )
+    db_session.add(student)
+    db_session.commit()
+
+    with pytest.raises(HTTPException) as exc_info:
+        require_admin(student_user)
+
+    assert exc_info.value.status_code == 403
+
+def test_student_cannot_access_another_students_data(db_session: Session):
+    student_user = User(
+        full_name="Student One",
+        email="student-one@example.com",
+        hashed_password="hashed",
+        role=UserRole.student,
+    )
+
+    another_user = User(
+        full_name="Student Two",
+        email="student-two@example.com",
+        hashed_password="hashed",
+        role=UserRole.student,
+    )
+
+    db_session.add_all([student_user, another_user])
+    db_session.commit()
+    db_session.refresh(student_user)
+    db_session.refresh(another_user)
+
+    student_one = Student(
+        user_id=student_user.id,
+        roll_number="CSE3001",
+        department="CSE",
+        semester=5,
+    )
+
+    student_two = Student(
+        user_id=another_user.id,
+        roll_number="CSE3002",
+        department="CSE",
+        semester=5,
+    )
+
+    db_session.add_all([student_one, student_two])
+    db_session.commit()
+    db_session.refresh(student_one)
+    db_session.refresh(student_two)
+
+    current_student = student_repository.get_student_by_user_id(
+        db_session,
+        student_user.id
+    )
+
+    assert current_student.id == student_one.id
+    assert current_student.id != student_two.id
+
+    with pytest.raises(HTTPException) as exc_info:
+        if student_two.id != current_student.id:
+            raise HTTPException(
+                status_code=403,
+                detail="Students can only access their own data"
+            )
+
+    assert exc_info.value.status_code == 403
+    
+def test_student_cannot_access_another_student_through_dependency(
+    db_session: Session
+):
+    student_user = User(
+        full_name="Student Three",
+        email="student-three@example.com",
+        hashed_password="hashed",
+        role=UserRole.student,
+    )
+
+    another_user = User(
+        full_name="Student Four",
+        email="student-four@example.com",
+        hashed_password="hashed",
+        role=UserRole.student,
+    )
+
+    db_session.add_all([student_user, another_user])
+    db_session.commit()
+    db_session.refresh(student_user)
+    db_session.refresh(another_user)
+
+    student_one = Student(
+        user_id=student_user.id,
+        roll_number="CSE3003",
+        department="CSE",
+        semester=5,
+    )
+
+    student_two = Student(
+        user_id=another_user.id,
+        roll_number="CSE3004",
+        department="CSE",
+        semester=5,
+    )
+
+    db_session.add_all([student_one, student_two])
+    db_session.commit()
+    db_session.refresh(student_one)
+    db_session.refresh(student_two)
+
+    with pytest.raises(HTTPException) as exc_info:
+        require_student_access(
+            student_id=student_two.id,
+            current_user=student_user,
+            db=db_session,
+        )
+
+    assert exc_info.value.status_code == 403
+    
+def test_teacher_cannot_substitute_another_teachers_session(
+    db_session: Session
+):
+    teacher_one = User(
+        full_name="Teacher One",
+        email="teacher-one@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    teacher_two = User(
+        full_name="Teacher Two",
+        email="teacher-two@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    replacement_teacher = User(
+        full_name="Replacement Teacher",
+        email="replacement@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    db_session.add_all([
+        teacher_one,
+        teacher_two,
+        replacement_teacher,
+    ])
+    db_session.commit()
+
+    db_session.refresh(teacher_one)
+    db_session.refresh(teacher_two)
+    db_session.refresh(replacement_teacher)
+
+    class_record = Class(
+        name="Data Structures",
+        code="CS401",
+        department="CSE",
+        teacher_id=teacher_one.id,
+    )
+
+    db_session.add(class_record)
+    db_session.commit()
+    db_session.refresh(class_record)
+
+    session = ClassSession(
+        class_id=class_record.id,
+        actual_teacher_id=teacher_one.id,
+        date=date.today(),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        room="R101",
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.scheduled.value,
+        is_open=False,
+    )
+
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        substitute_session(
+            db_session,
+            session.id,
+            replacement_teacher.id,
+            teacher_two,
+        )
+
+    assert exc_info.value.status_code == 403
+    
+def test_teacher_cannot_cancel_another_teachers_session(
+    db_session: Session
+):
+    teacher_one = User(
+        full_name="Teacher One",
+        email="cancel-teacher-one@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    teacher_two = User(
+        full_name="Teacher Two",
+        email="cancel-teacher-two@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    db_session.add_all([teacher_one, teacher_two])
+    db_session.commit()
+
+    db_session.refresh(teacher_one)
+    db_session.refresh(teacher_two)
+
+    class_record = Class(
+        name="Operating Systems",
+        code="CS402",
+        department="CSE",
+        teacher_id=teacher_one.id,
+    )
+
+    db_session.add(class_record)
+    db_session.commit()
+    db_session.refresh(class_record)
+
+    session = ClassSession(
+        class_id=class_record.id,
+        actual_teacher_id=teacher_one.id,
+        date=date.today(),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        room="R102",
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.scheduled.value,
+        is_open=False,
+    )
+
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        cancel_session(
+            db_session,
+            session.id,
+            teacher_two,
+        )
+
+    assert exc_info.value.status_code == 403
+    
+def test_teacher_can_cancel_own_session(db_session: Session):
+    teacher = User(
+        full_name="Authorized Teacher",
+        email="authorized-cancel@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    db_session.add(teacher)
+    db_session.commit()
+    db_session.refresh(teacher)
+
+    class_record = Class(
+        name="Database Systems",
+        code="CS403",
+        department="CSE",
+        teacher_id=teacher.id,
+    )
+
+    db_session.add(class_record)
+    db_session.commit()
+    db_session.refresh(class_record)
+
+    session = ClassSession(
+        class_id=class_record.id,
+        actual_teacher_id=teacher.id,
+        date=date.today(),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        room="R103",
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.scheduled.value,
+        is_open=False,
+    )
+
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    cancelled = cancel_session(
+        db_session,
+        session.id,
+        teacher,
+    )
+
+    assert cancelled.session_type == SessionType.cancelled
+    assert cancelled.status == ClassSessionStatus.cancelled.value
+    assert cancelled.is_open is False
+    
+def test_admin_can_cancel_any_teachers_session(db_session: Session):
+    teacher = User(
+        full_name="Session Teacher",
+        email="session-teacher@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    admin = User(
+        full_name="System Admin",
+        email="session-admin@example.com",
+        hashed_password="hashed",
+        role=UserRole.admin,
+    )
+
+    db_session.add_all([teacher, admin])
+    db_session.commit()
+
+    db_session.refresh(teacher)
+    db_session.refresh(admin)
+
+    class_record = Class(
+        name="Computer Networks",
+        code="CS404",
+        department="CSE",
+        teacher_id=teacher.id,
+    )
+
+    db_session.add(class_record)
+    db_session.commit()
+    db_session.refresh(class_record)
+
+    session = ClassSession(
+        class_id=class_record.id,
+        actual_teacher_id=teacher.id,
+        date=date.today(),
+        start_time=time(12, 0),
+        end_time=time(13, 0),
+        room="R104",
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.scheduled.value,
+        is_open=False,
+    )
+
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    cancelled = cancel_session(
+        db_session,
+        session.id,
+        admin,
+    )
+
+    assert cancelled.session_type == SessionType.cancelled
+    assert cancelled.status == ClassSessionStatus.cancelled.value
+    assert cancelled.is_open is False
+    
+def test_teacher_cannot_open_another_teachers_session(
+    db_session: Session
+):
+    teacher_one = User(
+        full_name="Open Teacher One",
+        email="open-teacher-one@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    teacher_two = User(
+        full_name="Open Teacher Two",
+        email="open-teacher-two@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    db_session.add_all([teacher_one, teacher_two])
+    db_session.commit()
+
+    db_session.refresh(teacher_one)
+    db_session.refresh(teacher_two)
+
+    class_record = Class(
+        name="Computer Architecture",
+        code="CS405",
+        department="CSE",
+        teacher_id=teacher_one.id,
+    )
+
+    db_session.add(class_record)
+    db_session.commit()
+    db_session.refresh(class_record)
+
+    session = ClassSession(
+        class_id=class_record.id,
+        actual_teacher_id=teacher_one.id,
+        date=date.today(),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        room="R105",
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.scheduled.value,
+        is_open=False,
+    )
+
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        class_session_repository.open_session(
+            db_session,
+            session.id,
+            teacher_two,
+        )
+
+    assert exc_info.value.status_code == 403
+    
+def test_teacher_cannot_close_another_teachers_session(
+    db_session: Session
+):
+    teacher_one = User(
+        full_name="Close Teacher One",
+        email="close-teacher-one@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    teacher_two = User(
+        full_name="Close Teacher Two",
+        email="close-teacher-two@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    db_session.add_all([teacher_one, teacher_two])
+    db_session.commit()
+
+    db_session.refresh(teacher_one)
+    db_session.refresh(teacher_two)
+
+    class_record = Class(
+        name="Software Engineering",
+        code="CS406",
+        department="CSE",
+        teacher_id=teacher_one.id,
+    )
+
+    db_session.add(class_record)
+    db_session.commit()
+    db_session.refresh(class_record)
+
+    session = ClassSession(
+        class_id=class_record.id,
+        actual_teacher_id=teacher_one.id,
+        date=date.today(),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        room="R106",
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.conducted.value,
+        is_open=True,
+    )
+
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        class_session_repository.close_session(
+            db_session,
+            session.id,
+            teacher_two,
+        )
+
+    assert exc_info.value.status_code == 403
+    
+def test_teacher_can_close_own_session(db_session: Session):
+    teacher = User(
+        full_name="Teacher One",
+        email="teacher-close-own@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+        is_active=True,
+    )
+    db_session.add(teacher)
+    db_session.commit()
+    db_session.refresh(teacher)
+
+    class_obj = Class(
+        name="Test Class",
+        code="TCLOSEOWN",
+        department="ECE",
+        teacher_id=teacher.id,
+    )
+    db_session.add(class_obj)
+    db_session.commit()
+    db_session.refresh(class_obj)
+
+    session = ClassSession(
+        class_id=class_obj.id,
+        actual_teacher_id=teacher.id,
+        date=date.today(),
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.conducted.value,
+        is_open=True,
+    )
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    closed = class_session_repository.close_session(
+        db_session,
+        session.id,
+        teacher,
+    )
+
+    assert closed.is_open is False
+    assert closed.status == ClassSessionStatus.conducted.value
+    
+def test_admin_can_close_any_teachers_session(db_session: Session):
+    teacher = User(
+        full_name="Teacher Two",
+        email="teacher-close-admin@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+        is_active=True,
+    )
+
+    admin = User(
+        full_name="Admin",
+        email="admin-close-any@example.com",
+        hashed_password="hashed",
+        role=UserRole.admin,
+        is_active=True,
+    )
+
+    db_session.add_all([teacher, admin])
+    db_session.commit()
+    db_session.refresh(teacher)
+    db_session.refresh(admin)
+
+    class_obj = Class(
+        name="Admin Close Class",
+        code="TCLOSEADMIN",
+        department="CSE",
+        teacher_id=teacher.id,
+    )
+    db_session.add(class_obj)
+    db_session.commit()
+    db_session.refresh(class_obj)
+
+    session = ClassSession(
+        class_id=class_obj.id,
+        actual_teacher_id=teacher.id,
+        date=date.today(),
+        start_time=time(11, 0),
+        end_time=time(12, 0),
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.conducted.value,
+        is_open=True,
+    )
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    closed = class_session_repository.close_session(
+        db_session,
+        session.id,
+        admin,
+    )
+
+    assert closed.is_open is False
+    assert closed.status == ClassSessionStatus.conducted.value

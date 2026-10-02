@@ -20,6 +20,6 @@ def create_student(
 @router.get("/", response_model=list[StudentOut])
 def list_students(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
+    current_user=Depends(require_admin)
 ):
     return student_repository.get_all_students(db)
