@@ -26,6 +26,7 @@ from seed_demo_data import COURSE_KEY_TO_CODE, FIXED_WEEKLY_PLAN, PERIODS
 
 from app.schemas.user import UserCreate
 from app.services import auth_service
+from app.core.dependencies import get_current_user
 
 
 @pytest.fixture
@@ -243,5 +244,24 @@ def test_public_registration_rejects_admin_role(db_session: Session):
 
     with pytest.raises(HTTPException) as exc_info:
         auth_service.register_user(db_session, user_data)
+
+    assert exc_info.value.status_code == 403
+
+def test_inactive_user_cannot_use_existing_token(db_session: Session):
+    user = User(
+        full_name="Disabled User",
+        email="disabled@example.com",
+        hashed_password="hashed",
+        role=UserRole.student,
+        is_active=False,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    token = auth_service.create_access_token({"sub": user.email, "role": user.role})
+
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_user(token=token, db=db_session)
 
     assert exc_info.value.status_code == 403
