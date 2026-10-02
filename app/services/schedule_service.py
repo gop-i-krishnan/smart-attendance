@@ -16,6 +16,8 @@ def substitute_session(db: Session, session_id: int, new_teacher_id: int, reques
         raise HTTPException(status_code=400, detail="Cannot substitute a cancelled session")
     session.actual_teacher_id = new_teacher_id
     session.session_type = SessionType.substitute
+    session.status = "Rescheduled"
+    session.is_open = False
     db.commit()
     db.refresh(session)
     return session
@@ -27,6 +29,8 @@ def cancel_session(db: Session, session_id: int) -> ClassSession:
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     session.session_type = SessionType.cancelled
+    session.status = "Cancelled"
+    session.is_open = False
     db.commit()
     db.refresh(session)
     return session

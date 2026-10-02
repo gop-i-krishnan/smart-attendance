@@ -3,27 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SecureTrack X — Login</title>
-  <meta name="description" content="SecureTrack X — Context-aware academic attendance management for modern institutions.">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>SecureTrack X — RSET Portal Login</title>
+  <meta name="description" content="SecureTrack X — Context-aware academic attendance management for Rajagiri.">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --primary: #6366f1;
-      --primary-dark: #4f46e5;
-      --accent:  #06b6d4;
+      /* Rajagiri Aesthetics modernized */
+      --primary: #9b1c22;      /* Rajagiri Maroon */
+      --primary-dark: #7a151b;
+      --accent:  #f4a21c;      /* Rajagiri Gold */
       --danger:  #ef4444;
       --success: #10b981;
-      --warn:    #f59e0b;
-      --bg:      #0f0f1a;
-      --surface: #1a1a2e;
-      --surface2:#22223b;
-      --border:  rgba(99,102,241,0.18);
-      --text:    #e2e8f0;
-      --muted:   #94a3b8;
+      --bg:      #0a0a0a;
+      --surface: rgba(30, 30, 30, 0.6);
+      --surface2: rgba(45, 45, 45, 0.8);
+      --border:  rgba(155, 28, 34, 0.3);
+      --text:    #f8f9fa;
+      --muted:   #adb5bd;
     }
     body {
-      font-family: 'Inter', sans-serif;
+      font-family: 'Outfit', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -37,25 +37,29 @@
       content: '';
       position: fixed; inset: 0;
       background: 
-        radial-gradient(ellipse 80% 60% at 10% 20%, rgba(99,102,241,0.15) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 50% at 90% 80%, rgba(6,182,212,0.1) 0%, transparent 60%);
-      animation: pulse-bg 8s ease-in-out infinite alternate;
+        radial-gradient(circle at 15% 50%, rgba(155, 28, 34, 0.15), transparent 50%),
+        radial-gradient(circle at 85% 30%, rgba(244, 162, 28, 0.1), transparent 50%);
+      animation: pulse-bg 10s ease-in-out infinite alternate;
       z-index: 0;
     }
     @keyframes pulse-bg {
-      from { opacity: 0.7; } to { opacity: 1; }
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(1.1); opacity: 1; }
     }
 
     .login-wrap {
       position: relative; z-index: 1;
-      display: grid; grid-template-columns: 1fr 1fr;
-      max-width: 960px; width: 95%;
-      min-height: 540px;
+      display: grid; grid-template-columns: 1.2fr 1fr;
+      max-width: 1000px; width: 95%;
+      min-height: 600px;
       border-radius: 24px;
       overflow: hidden;
-      border: 1px solid var(--border);
-      box-shadow: 0 32px 80px rgba(0,0,0,0.6);
-      animation: rise 0.6s cubic-bezier(.22,.68,0,1.2) both;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+      background: rgba(20, 20, 20, 0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      animation: rise 0.8s cubic-bezier(.22,.68,0,1.2) both;
     }
     @keyframes rise {
       from { transform: translateY(40px); opacity: 0; }
@@ -64,106 +68,128 @@
 
     /* Left panel */
     .left-panel {
-      background: linear-gradient(135deg, var(--primary-dark) 0%, #312e81 50%, #0f172a 100%);
-      padding: 56px 48px;
+      position: relative;
+      padding: 60px 48px;
       display: flex; flex-direction: column; justify-content: center;
+      background: linear-gradient(135deg, rgba(155, 28, 34, 0.8) 0%, rgba(20, 20, 20, 0.9) 100%);
+      overflow: hidden;
     }
+    .left-panel::after {
+      content: ''; position: absolute; inset: 0;
+      background: url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80') center/cover;
+      opacity: 0.2; mix-blend-mode: overlay; z-index: 0;
+    }
+    .left-panel > * { position: relative; z-index: 1; }
+    
     .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 48px; }
     .logo-icon {
-      width: 48px; height: 48px; border-radius: 14px;
-      background: rgba(255,255,255,0.15);
+      width: 52px; height: 52px; border-radius: 16px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
       display: flex; align-items: center; justify-content: center;
-      font-size: 24px;
+      font-size: 26px; box-shadow: 0 8px 24px rgba(155, 28, 34, 0.4);
     }
-    .logo-text { font-size: 22px; font-weight: 700; }
+    .logo-text { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
     .logo-text span { color: var(--accent); }
-    .tagline { font-size: 32px; font-weight: 800; line-height: 1.25; margin-bottom: 16px; }
+    .tagline { font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 20px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
     .tagline em { color: var(--accent); font-style: normal; }
-    .sub { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.7; }
+    .sub { font-size: 15px; color: rgba(255,255,255,0.7); line-height: 1.6; max-width: 90%; }
 
-    .feature-list { margin-top: 36px; display: flex; flex-direction: column; gap: 12px; }
-    .feature { display: flex; align-items: center; gap: 10px; font-size: 13px; color: rgba(255,255,255,0.75); }
-    .feature-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+    .feature-list { margin-top: 48px; display: flex; flex-direction: column; gap: 16px; }
+    .feature { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.85); transition: transform 0.3s ease; }
+    .feature:hover { transform: translateX(5px); }
+    .feature-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex-shrink: 0; box-shadow: 0 0 10px var(--accent); }
 
     /* Right panel */
     .right-panel {
-      background: var(--surface);
-      padding: 56px 48px;
+      padding: 60px 48px;
       display: flex; flex-direction: column; justify-content: center;
+      background: rgba(15, 15, 15, 0.6);
     }
-    .right-panel h2 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
-    .right-panel p  { font-size: 13px; color: var(--muted); margin-bottom: 32px; }
+    .right-panel h2 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    .right-panel p  { font-size: 14px; color: var(--muted); margin-bottom: 36px; }
 
-    label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 6px; }
-    .input-group { margin-bottom: 20px; position: relative; }
+    label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 8px; }
+    .input-group { margin-bottom: 24px; position: relative; }
     input {
-      width: 100%; padding: 12px 16px;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 10px; color: var(--text); font-size: 14px; font-family: inherit;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      width: 100%; padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px; color: var(--text); font-size: 15px; font-family: inherit;
+      transition: all 0.3s ease;
     }
     input:focus {
       outline: none; border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(99,102,241,0.2);
+      background: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 0 0 4px rgba(155, 28, 34, 0.15);
     }
 
     .role-pills {
-      display: flex; gap: 8px; margin-bottom: 24px;
+      display: flex; gap: 12px; margin-bottom: 32px;
+      background: rgba(255, 255, 255, 0.03); padding: 6px; border-radius: 14px;
     }
     .pill {
-      flex: 1; padding: 8px; text-align: center; font-size: 12px; font-weight: 600;
-      border: 1px solid var(--border); border-radius: 8px;
-      cursor: pointer; transition: all 0.2s; color: var(--muted);
+      flex: 1; padding: 10px; text-align: center; font-size: 13px; font-weight: 600;
+      border-radius: 10px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      color: var(--muted);
     }
-    .pill.active, .pill:hover {
-      background: var(--primary); border-color: var(--primary); color: white;
+    .pill.active {
+      background: var(--primary); color: white;
+      box-shadow: 0 4px 15px rgba(155, 28, 34, 0.4);
     }
+    .pill:hover:not(.active) { color: white; background: rgba(255, 255, 255, 0.1); }
 
     .btn-primary {
-      width: 100%; padding: 13px; font-size: 15px; font-weight: 600;
-      background: linear-gradient(90deg, var(--primary), var(--accent));
-      color: white; border: none; border-radius: 10px; cursor: pointer;
-      transition: opacity 0.2s, transform 0.15s;
-      font-family: inherit;
+      width: 100%; padding: 15px; font-size: 16px; font-weight: 700; letter-spacing: 0.5px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: white; border: none; border-radius: 12px; cursor: pointer;
+      transition: all 0.3s ease; box-shadow: 0 8px 25px rgba(155, 28, 34, 0.3);
+      font-family: inherit; margin-top: 10px;
     }
-    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(155, 28, 34, 0.4); filter: brightness(1.1); }
     .btn-primary:active { transform: translateY(0); }
 
-    .error-msg { color: var(--danger); font-size: 12px; margin-top: 10px; min-height: 18px; }
+    .error-msg { color: var(--danger); font-size: 13px; margin-top: 12px; min-height: 18px; text-align: center; font-weight: 500; }
 
-    .demo-creds { margin-top: 20px; padding: 14px; background: var(--surface2); border-radius: 10px; font-size: 11px; color: var(--muted); }
-    .demo-creds strong { display: block; margin-bottom: 6px; color: var(--accent); }
+    .demo-creds { margin-top: 24px; padding: 16px; background: rgba(244, 162, 28, 0.05); border: 1px solid rgba(244, 162, 28, 0.1); border-radius: 12px; font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.6; }
+    .demo-creds strong { display: block; margin-bottom: 8px; color: var(--accent); font-size: 13px; }
 
-    @media (max-width: 700px) {
+    @media (max-width: 768px) {
       .login-wrap { grid-template-columns: 1fr; }
       .left-panel { display: none; }
     }
   </style>
+  <link href="/static/portal.css?v=2" rel="stylesheet">
 </head>
-<body>
+<body class="login-page">
+
+<header class="institutional-masthead">
+  <a class="institution-lockup" href="/" aria-label="Rajagiri School of Engineering and Technology portal home">
+    <span class="institution-mark" aria-hidden="true">R</span>
+    <span><strong class="institution-name">Rajagiri School of Engineering &amp; Technology</strong><small class="institution-meta">Autonomous · Kakkanad, Kochi</small></span>
+  </a>
+  <div class="masthead-context"><span class="campus-label">Academic services</span><span class="masthead-divider"></span><span class="masthead-detail">Secure portal access</span></div>
+</header>
 
 <div class="login-wrap">
   <!-- Left brand panel -->
   <div class="left-panel">
     <div class="logo">
-      <div class="logo-icon">🎓</div>
-      <div class="logo-text">Secure<span>Track</span> X</div>
+      <div class="logo-icon">🏛️</div>
+      <div class="logo-text">RSET <span>RSMS</span></div>
     </div>
-    <div class="tagline">Attendance <em>beyond</em> the timetable.</div>
-    <div class="sub">A context-aware academic operations platform that understands real-world schedule dynamics.</div>
+    <div class="tagline">Rajagiri Student<br>Management <em>System</em></div>
+    <div class="sub">Advanced context-aware academic operations platform customized for Rajagiri School of Engineering & Technology.</div>
     <div class="feature-list">
-      <div class="feature"><div class="feature-dot"></div>Class Session Engine — Timetable vs Reality</div>
-      <div class="feature"><div class="feature-dot"></div>Holiday-aware automatic session generation</div>
-      <div class="feature"><div class="feature-dot"></div>Substitution & cancellation tracking</div>
-      <div class="feature"><div class="feature-dot"></div>AI-powered shortage risk prediction</div>
-      <div class="feature"><div class="feature-dot"></div>Role-based access: Admin · Teacher · Student</div>
+      <div class="feature"><div class="feature-dot"></div>Smart Class Session Generation</div>
+      <div class="feature"><div class="feature-dot"></div>Holiday & Cancellation Awareness</div>
+      <div class="feature"><div class="feature-dot"></div>AI Shortage Risk Prediction</div>
+      <div class="feature"><div class="feature-dot"></div>Secure Multi-role Access</div>
     </div>
   </div>
 
   <!-- Right login form -->
   <div class="right-panel">
-    <h2>Welcome back</h2>
-    <p>Sign in to your SecureTrack X account</p>
+    <h2>Portal Login</h2>
+    <p>Sign in to access your RSMS dashboard</p>
 
     <div class="role-pills">
       <div class="pill active" onclick="setRole('admin')">Admin</div>
@@ -173,18 +199,18 @@
 
     <div class="input-group">
       <label for="email">Email Address</label>
-      <input type="email" id="email" placeholder="you@rset.edu" />
+      <input type="email" id="email" placeholder="you@rajagiritech.edu.in" />
     </div>
     <div class="input-group">
       <label for="password">Password</label>
       <input type="password" id="password" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()" />
     </div>
 
-    <button class="btn-primary" onclick="doLogin()" id="login-btn">Sign In</button>
+    <button class="btn-primary" onclick="doLogin()" id="login-btn">Authenticate</button>
     <div class="error-msg" id="error-msg"></div>
 
     <div class="demo-creds">
-      <strong>🔑 Demo Credentials (after running seed_data.py)</strong>
+      <strong>🔑 Demo Access Credentials</strong>
       Admin: admin@rset.edu / password<br>
       Teacher: teacher@rset.edu / password<br>
       Student: student1@rset.edu / password
@@ -212,8 +238,12 @@
     const pass  = document.getElementById('password').value;
     const btn   = document.getElementById('login-btn');
     const err   = document.getElementById('error-msg');
-    err.textContent = '';
-    btn.textContent = 'Signing in…';
+    err.style.opacity = 0;
+    setTimeout(() => { err.textContent = ''; err.style.opacity = 1; }, 200);
+    
+    const originalText = btn.textContent;
+    btn.innerHTML = '<span style="display:inline-block; animation:spin 1s linear infinite">⏳</span> Authenticating...';
+    btn.style.pointerEvents = 'none';
 
     const form = new URLSearchParams();
     form.append('username', email);
@@ -225,17 +255,34 @@
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: form
       });
-      if (!res.ok) { err.textContent = 'Invalid credentials. Please try again.'; return; }
+      if (!res.ok) { 
+        err.textContent = 'Authentication failed. Please verify your credentials.'; 
+        return; 
+      }
       const data = await res.json();
       sessionStorage.setItem('token', data.access_token);
       sessionStorage.setItem('email', email);
-      window.location.href = roleRedirect[selectedRole];
+      
+      // Success animation before redirect
+      btn.innerHTML = '✅ Success';
+      btn.style.background = 'var(--success)';
+      setTimeout(() => { window.location.href = roleRedirect[selectedRole]; }, 500);
     } catch(e) {
-      err.textContent = 'Cannot connect to server.';
+      err.textContent = 'Network error. Cannot connect to RSMS server.';
     } finally {
-      btn.textContent = 'Sign In';
+      if(!btn.innerHTML.includes('Success')) {
+        btn.textContent = originalText;
+        btn.style.pointerEvents = 'auto';
+      }
     }
   }
+  
+  // Initialize with admin role demo creds on load
+  window.onload = () => {
+    document.getElementById('email').value = 'admin@rset.edu';
+    document.getElementById('password').value = 'password';
+  };
 </script>
+<style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
 </body>
 </html>

@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SecureTrack X — Student Portal</title>
+  <title>RSET RSMS — Student Home</title>
   <meta name="description" content="Student self-service portal to view attendance, risk level and academic schedule.">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
     :root {
@@ -150,6 +150,9 @@
     @keyframes fadein { from { opacity:0; } }
     .empty { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
     .loading { text-align:center; padding:30px; color:var(--muted); }
+    .notice-stack { display:flex; flex-direction:column; gap:12px; }
+    .notice-item { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+    .assistant-box { background:linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.08)); border:1px solid var(--border); border-radius:12px; padding:18px; }
 
     .btn { padding:8px 16px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; border:none; }
     .btn-ghost { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
@@ -167,39 +170,41 @@
     .msg-ok  { color:var(--success); font-size:12px; margin-top:8px; }
     .msg-err { color:var(--danger);  font-size:12px; margin-top:8px; }
   </style>
+  <link href="/static/portal.css?v=7" rel="stylesheet">
 </head>
-<body>
+<body class="student-page">
+
+<header class="institutional-masthead">
+  <a class="institution-lockup" href="/student" aria-label="Rajagiri Students Management System home">
+    <span class="institution-mark" aria-hidden="true">RSMS</span>
+    <span><strong class="institution-name">Rajagiri Students' Management System</strong><small class="institution-meta">Rajagiri School of Engineering &amp; Technology · Autonomous</small></span>
+  </a>
+  <div class="masthead-context"><span class="campus-label">Student portal</span><span class="masthead-divider"></span><span class="masthead-detail">Academic year 2026–27</span></div>
+</header>
 
 <div class="layout">
-  <!-- Sidebar -->
   <nav class="sidebar">
-    <div class="sidebar-brand">
-      <div class="brand-icon">🎓</div>
-      <div class="brand-text">Secure<span>Track</span> X</div>
-    </div>
-    <div class="nav-item active" onclick="showSection('overview')">📊 My Attendance</div>
-    <div class="nav-item" onclick="showSection('history')">📋 History</div>
-    <div class="nav-item" onclick="showSection('leave')">✉️ Leave Request</div>
-    <div class="nav-item" onclick="showSection('calendar')">🗓️ Academic Calendar</div>
+    <div class="nav-section">Student's Corner</div>
+    <div class="nav-item active" data-section="overview" aria-current="page" onclick="showSection('overview')">Home</div>
+    <div class="nav-item" data-section="history" onclick="showSection('history')">Attendance</div>
+    <div class="nav-item" data-section="timetable" onclick="showSection('timetable')">Weekly Timetable</div>
+    <div class="nav-item" data-section="leave" onclick="showSection('leave')">Leave Request</div>
+    <div class="nav-item" data-section="calendar" onclick="showSection('calendar')">Academic Calendar</div>
+    <button class="student-nav-action student-print-action" type="button" onclick="window.print()">Print</button>
     <div class="sidebar-footer">
-      <div class="user-chip">
-        <div class="avatar" id="s-avatar">S</div>
-        <div>
-          <div style="font-weight:600;font-size:12px" id="s-email">—</div>
-          <div style="color:var(--muted);font-size:10px">Student</div>
-        </div>
-      </div>
+      <span class="student-user-name" id="s-email">—</span>
+      <button class="student-nav-action" type="button" onclick="logout()">Logout</button>
     </div>
   </nav>
 
   <div class="main">
     <div class="topbar">
       <div>
-        <h1 id="page-title">My Attendance Overview</h1>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px" id="student-info-label"></div>
+        <h1 id="page-title">Student Home</h1>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px" id="student-info-label">Student's Corner</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;">
-        <span class="badge-student">Student</span>
+        <span class="badge-student">RSMS</span>
         <button class="logout-btn" onclick="logout()">Sign Out</button>
       </div>
     </div>
@@ -208,43 +213,76 @@
 
       <!-- Overview section -->
       <div class="section visible" id="sec-overview">
-        <!-- Hero attendance gauge -->
-        <div class="hero-card">
-          <div class="hero-top">
-            <div>
-              <div class="hero-label">Overall Attendance</div>
-              <div class="hero-pct" id="hero-pct" style="color:var(--primary)">—%</div>
-              <div class="hero-sub" id="hero-sub">Loading your data…</div>
+        <div class="student-home-grid">
+          <section class="student-home-column" aria-label="Personal attendance summary">
+            <div class="hero-card">
+              <div class="hero-top">
+                <div>
+                  <div class="hero-label">Overall Attendance</div>
+                  <div class="hero-pct" id="hero-pct" style="color:var(--primary)">—%</div>
+                  <div class="hero-sub" id="hero-sub">Loading your data…</div>
+                </div>
+                <div class="hero-right">
+                  <div class="risk-pill risk-safe" id="risk-pill" style="display:none">✅ Safe</div>
+                </div>
+              </div>
+              <div class="progress-wrap">
+                <div class="pct-bar"><div class="pct-fill" id="pct-fill" style="width:0%;background:var(--primary)"></div></div>
+                <div class="pct-marker"></div>
+              </div>
             </div>
-            <div class="hero-right">
-              <div class="risk-pill risk-safe" id="risk-pill" style="display:none">✅ Safe</div>
+
+            <div class="student-panel">
+              <div class="student-panel-header">Attendance Summary</div>
+              <div class="student-panel-body">
+                <div class="stats-grid">
+                  <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" id="q-present">—</div><div class="stat-label">Present</div></div>
+                  <div class="stat-card"><div class="stat-icon">❌</div><div class="stat-value" id="q-absent">—</div><div class="stat-label">Absent</div></div>
+                  <div class="stat-card"><div class="stat-icon">🕐</div><div class="stat-value" id="q-late">—</div><div class="stat-label">Late</div></div>
+                </div>
+                <div class="forecast-card">
+                  <div class="forecast-item">
+                    <div class="f-label">Classes I Can Miss</div>
+                    <div class="f-value" id="f-can-miss" style="color:var(--success)">—</div>
+                    <div class="forecast-note">while staying above 75%</div>
+                  </div>
+                  <div class="forecast-item">
+                    <div class="f-label">Classes to Recover</div>
+                    <div class="f-value" id="f-to-recover" style="color:var(--danger)">—</div>
+                    <div class="forecast-note">consecutive attendance needed</div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="progress-wrap">
-            <div class="pct-bar"><div class="pct-fill" id="pct-fill" style="width:0%;background:var(--primary)"></div></div>
-            <div class="pct-marker"></div>
-          </div>
-        </div>
+          </section>
 
-        <!-- Quick stats -->
-        <div class="stats-grid">
-          <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" id="q-present">—</div><div class="stat-label">Present</div></div>
-          <div class="stat-card"><div class="stat-icon">❌</div><div class="stat-value" id="q-absent">—</div><div class="stat-label">Absent</div></div>
-          <div class="stat-card"><div class="stat-icon">🕐</div><div class="stat-value" id="q-late">—</div><div class="stat-label">Late</div></div>
-        </div>
+          <section class="student-home-column" aria-label="Student activities and announcements">
+            <div class="student-panel">
+              <div class="student-panel-header">Student Activities &amp; Notices</div>
+              <div class="student-panel-body">
+                <div id="student-notices" class="notice-stack"><div class="loading">Loading notices…</div></div>
+              </div>
+            </div>
 
-        <!-- Forecast -->
-        <div class="forecast-card">
-          <div class="forecast-item">
-            <div class="f-label">🛡️ Classes I Can Still Miss</div>
-            <div class="f-value" id="f-can-miss" style="color:var(--success)">—</div>
-            <div style="font-size:11px;color:var(--muted)">while staying above 75%</div>
-          </div>
-          <div class="forecast-item">
-            <div class="f-label">🚨 Classes to Recover</div>
-            <div class="f-value" id="f-to-recover" style="color:var(--danger)">—</div>
-            <div style="font-size:11px;color:var(--muted)">consecutive attendance needed</div>
-          </div>
+            <div class="student-panel">
+              <div class="student-panel-header">Academic Guidance</div>
+              <div class="student-panel-body">
+                <div id="student-assistant" class="assistant-box"><div class="loading">Loading guidance…</div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="student-home-column" aria-label="Student reports and services">
+            <div class="student-panel">
+              <div class="student-panel-header">Reports &amp; Services</div>
+              <div class="student-service-list">
+                <button class="student-service-link" type="button" onclick="openStudentSection('history')"><span>Attendance history</span><span aria-hidden="true">›</span></button>
+                <button class="student-service-link" type="button" onclick="openStudentSection('timetable')"><span>Weekly fixed timetable</span><span aria-hidden="true">›</span></button>
+                <button class="student-service-link" type="button" onclick="openStudentSection('leave')"><span>Leave request</span><span aria-hidden="true">›</span></button>
+                <button class="student-service-link" type="button" onclick="openStudentSection('calendar')"><span>Academic calendar</span><span aria-hidden="true">›</span></button>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -253,6 +291,15 @@
         <div class="card">
           <div class="card-title">📋 Attendance History</div>
           <div id="history-list"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+
+      <div class="section" id="sec-timetable">
+        <div class="student-panel">
+          <div class="student-panel-header">Fixed Weekly Timetable</div>
+          <div class="student-panel-body">
+            <div id="student-fixed-timetable"><div class="loading">Loading timetable…</div></div>
+          </div>
         </div>
       </div>
 
@@ -290,9 +337,21 @@
 
       <!-- Calendar section -->
       <div class="section" id="sec-calendar">
-        <div class="card">
-          <div class="card-title">🗓️ Academic Calendar</div>
-          <div id="s-calendar-list"><div class="loading">Loading…</div></div>
+        <div class="student-calendar-page">
+          <div class="student-calendar-heading">
+            <div>
+              <div class="student-calendar-eyebrow">Academic services</div>
+              <h2>Students' Academic Calendar</h2>
+            </div>
+            <div class="student-calendar-controls">
+              <button class="student-calendar-button" type="button" onclick="shiftCalendarWindow(-3)">← Previous</button>
+              <label class="calendar-year-label" for="calendar-year">Year</label>
+              <select id="calendar-year" aria-label="Calendar year"></select>
+              <button class="student-calendar-button apply" type="button" onclick="applyCalendarYear()">Apply</button>
+              <button class="student-calendar-button" type="button" onclick="shiftCalendarWindow(3)">Next →</button>
+            </div>
+          </div>
+          <div id="s-calendar-list" class="student-calendar-months"><div class="loading">Loading…</div></div>
         </div>
       </div>
 
@@ -304,35 +363,69 @@
   const API   = window.location.origin + '/api/v1';
   const token = sessionStorage.getItem('token');
   const email = sessionStorage.getItem('email');
+  const demoStudentRollByEmail = {
+    'student1@rset.edu': 'U2301079',
+    'student2@rset.edu': 'U2301098',
+    'alice@rset.edu': 'U2301000',
+    'student3@rset.edu': 'U2301101',
+    'student4@rset.edu': 'U2301102',
+    'ece.student1@rset.edu': 'E2301001',
+    'ece.student2@rset.edu': 'E2301002',
+    'ece.student3@rset.edu': 'E2301003',
+    'ece.student4@rset.edu': 'E2301004',
+    'ece.student5@rset.edu': 'E2301005'
+  };
   if (!token) window.location.href = '/';
 
   document.getElementById('s-email').textContent  = email || '—';
-  document.getElementById('s-avatar').textContent = (email||'S')[0].toUpperCase();
+  document.getElementById('student-info-label').textContent = `Logged in user: ${email || 'Student'}`;
 
   // ── Resolve current student ID by listing students and matching email ─────
   let myStudentId = null;
+  let currentStudentDepartment = null;
+  let studentProfilePromise = null;
+
+  function getCurrentStudentProfile() {
+    if (!studentProfilePromise) {
+      studentProfilePromise = (async () => {
+        const rollNumber = demoStudentRollByEmail[(email || '').toLowerCase()];
+        if (!rollNumber) return null;
+        const response = await fetch(`${API}/students/`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!response.ok) return null;
+        const students = await response.json();
+        return students.find(student => student.roll_number === rollNumber) || null;
+      })().catch(() => null);
+    }
+    return studentProfilePromise;
+  }
 
   async function init() {
     const h = { 'Authorization': `Bearer ${token}` };
-    // Fetch student list — find ourselves by matching email via user info
-    const meRes = await fetch(`${API}/students/`, { headers: h });
-    if (!meRes.ok) return;
-    const students = await meRes.json();
-    // We don't have user email in StudentOut, so load analytics for all and pick
-    const analRes = await fetch(`${API}/analytics/risk/all`, { headers: h });
-    if (!analRes.ok) return;
-    const all = await analRes.json();
-    // Try fetching via student portal — use first student if only 1 or match manually
-    // For now take the first and let the student verify (requires auth scoping later)
-    if (all.length > 0) {
-      // Better approach: find via email stored at login (roll number match)
-      // Use first available if direct match not available
-      const me = all[0]; // replace with actual user-specific fetch in production
-      myStudentId = me.student_id;
-      renderOverview(me);
-      document.getElementById('student-info-label').textContent = `${me.roll_number} · ${me.department} · Sem ${me.semester}`;
-    }
     loadCalendar();
+    loadStudentNotices();
+    loadAssistantSummary();
+
+    const profile = await getCurrentStudentProfile();
+    if (!profile) {
+      showAttendanceUnavailable();
+      return;
+    }
+    myStudentId = profile.id;
+    currentStudentDepartment = profile.department;
+
+    const analRes = await fetch(`${API}/analytics/student/${profile.id}`, { headers: h });
+    if (!analRes.ok) {
+      showAttendanceUnavailable();
+      return;
+    }
+    const analytics = await analRes.json();
+    renderOverview(analytics);
+    document.getElementById('student-info-label').textContent = `Logged in user: ${email} · ${profile.roll_number} · ${profile.department} · Sem ${profile.semester}`;
+  }
+
+  function showAttendanceUnavailable() {
+    document.getElementById('hero-sub').textContent = 'Your individual attendance summary is not available for this account.';
+    document.getElementById('history-list').innerHTML = '<div class="empty">Your attendance history is not available for this account.</div>';
   }
 
   function renderOverview(me) {
@@ -360,8 +453,45 @@
     pill.textContent = r.text;
   }
 
+  async function loadStudentNotices() {
+    const res = await fetch(`${API}/notices/`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const notices = await res.json();
+    const target = document.getElementById('student-notices');
+    if (!res.ok || notices.length === 0) {
+      target.innerHTML = '<div class="empty">No active notices.</div>';
+      return;
+    }
+    target.innerHTML = notices.map(n => `
+      <div class="notice-item">
+        <div style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">${n.notice_type || 'Notice'}</div>
+        <div style="font-size:14px;font-weight:700">${n.title}</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:6px">${n.message}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadAssistantSummary() {
+    const res = await fetch(`${API}/assistant/`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const ai = await res.json();
+    const target = document.getElementById('student-assistant');
+    if (!res.ok) {
+      target.innerHTML = '<div class="empty">AI guidance unavailable.</div>';
+      return;
+    }
+    target.innerHTML = `
+      <div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase">${ai.header}</div>
+      <div style="margin-top:12px;font-size:14px;line-height:1.7;color:var(--text)">${ai.summary}</div>
+      <ul style="margin-top:12px;padding-left:18px;color:var(--muted);font-size:12px;line-height:1.8">
+        ${ai.priority_actions.map(item => `<li>${item}</li>`).join('')}
+      </ul>
+    `;
+  }
+
   async function loadHistory() {
-    if (!myStudentId) return;
+    if (!myStudentId) {
+      showAttendanceUnavailable();
+      return;
+    }
     const res = await fetch(`${API}/attendance/student/${myStudentId}`, { headers: { 'Authorization': `Bearer ${token}` } });
     if (!res.ok) { document.getElementById('history-list').innerHTML = '<div class="empty">Failed to load.</div>'; return; }
     const records = await res.json();
@@ -407,31 +537,189 @@
 
   async function loadCalendar() {
     const res = await fetch(`${API}/calendar/`, { headers: { 'Authorization': `Bearer ${token}` } });
-    if (!res.ok) return;
-    const events = await res.json();
-    const typeColor = { holiday:'var(--danger)', exam:'var(--primary)', other:'var(--accent)' };
-    document.getElementById('s-calendar-list').innerHTML = events.length === 0
-      ? '<div class="empty">No events.</div>'
-      : events.map(e => `
-        <div class="cal-row">
-          <div class="cal-dot" style="background:${typeColor[e.event_type]||'var(--muted)'}"></div>
-          <div>
-            <div class="cal-title">${e.title}</div>
-            <div class="cal-sub">${e.start_date} → ${e.end_date} · ${e.event_type}</div>
+    const target = document.getElementById('s-calendar-list');
+    if (!res.ok) {
+      target.innerHTML = '<div class="empty">The academic calendar could not be loaded.</div>';
+      return;
+    }
+    calendarEvents = await res.json();
+    const yearSelect = document.getElementById('calendar-year');
+    const currentYear = new Date().getFullYear();
+    yearSelect.innerHTML = Array.from({ length: 7 }, (_, index) => currentYear - 3 + index)
+      .map(year => `<option value="${year}" ${year === calendarYear ? 'selected' : ''}>${year}</option>`)
+      .join('');
+    renderAcademicCalendar();
+  }
+
+  let calendarEvents = [];
+  let calendarYear = new Date().getFullYear();
+  let calendarStartMonth = Math.floor(new Date().getMonth() / 3) * 3;
+
+  function applyCalendarYear() {
+    calendarYear = parseInt(document.getElementById('calendar-year').value, 10);
+    calendarStartMonth = 0;
+    renderAcademicCalendar();
+  }
+
+  function shiftCalendarWindow(monthDelta) {
+    const next = new Date(calendarYear, calendarStartMonth + monthDelta, 1);
+    calendarYear = next.getFullYear();
+    calendarStartMonth = next.getMonth();
+    document.getElementById('calendar-year').value = String(calendarYear);
+    renderAcademicCalendar();
+  }
+
+  function renderAcademicCalendar() {
+    const target = document.getElementById('s-calendar-list');
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const eventTypeLabels = { holiday: 'Holiday', exam: 'Examination', other: 'Institutional event' };
+    const today = new Date();
+    const monthMarkup = [];
+
+    for (let monthOffset = 0; monthOffset < 3; monthOffset += 1) {
+      const monthDate = new Date(calendarYear, calendarStartMonth + monthOffset, 1);
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const firstWeekday = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const weekCount = Math.ceil((firstWeekday + daysInMonth) / 7);
+      const cells = [];
+
+      for (let cellIndex = 0; cellIndex < weekCount * 7; cellIndex += 1) {
+        const dayNumber = cellIndex - firstWeekday + 1;
+        if (dayNumber < 1 || dayNumber > daysInMonth) {
+          cells.push('<td class="calendar-day empty-day" aria-hidden="true"></td>');
+          continue;
+        }
+
+        const monthString = String(month + 1).padStart(2, '0');
+        const dayString = String(dayNumber).padStart(2, '0');
+        const dateString = `${year}-${monthString}-${dayString}`;
+        const dateEvents = calendarEvents.filter(item => item.start_date <= dateString && item.end_date >= dateString);
+        const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === dayNumber;
+        const eventMarkup = dateEvents.map(item => `
+          <div class="calendar-event type-${escapeHtml(item.event_type)}" title="${escapeHtml(item.description || item.title)}">
+            <span class="calendar-event-mark" aria-hidden="true">›</span>${escapeHtml(item.title)}
+          </div>`).join('');
+        cells.push(`
+          <td class="calendar-day${isToday ? ' is-today' : ''}${dateEvents.length ? ' has-events' : ''}">
+            <span class="calendar-date">${dayNumber}</span>
+            <div class="calendar-event-list">${eventMarkup}</div>
+          </td>`);
+      }
+
+      const weekRows = [];
+      for (let row = 0; row < weekCount; row += 1) {
+        weekRows.push(`<tr>${cells.slice(row * 7, row * 7 + 7).join('')}</tr>`);
+      }
+      monthMarkup.push(`
+        <section class="academic-month" aria-label="${monthNames[month]} ${year}">
+          <h3>${monthNames[month]} ${year}</h3>
+          <div class="academic-month-scroll">
+            <table class="academic-month-table">
+              <thead><tr>${weekDays.map(day => `<th scope="col">${day}</th>`).join('')}</tr></thead>
+              <tbody>${weekRows.join('')}</tbody>
+            </table>
           </div>
-        </div>`).join('');
+        </section>`);
+    }
+
+    target.innerHTML = monthMarkup.join('');
+  }
+
+  const timetableDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const timetablePeriods = [
+    { start: '08:30', label: '8:30–9:30' },
+    { start: '09:30', label: '9:30–10:30' },
+    { start: '10:45', label: '10:45–11:45' },
+    { start: '11:45', label: '11:45–12:45' },
+    { start: '13:30', label: '1:30–2:30' },
+    { start: '14:30', label: '2:30–3:30' },
+    { start: '15:30', label: '3:30–4:30' }
+  ];
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+  }
+
+  async function loadFixedTimetable() {
+    const target = document.getElementById('student-fixed-timetable');
+    const profile = await getCurrentStudentProfile();
+    if (!profile) {
+      target.innerHTML = '<div class="empty">A linked student profile is required to view your timetable.</div>';
+      return;
+    }
+    currentStudentDepartment = profile.department;
+    const [timetableResponse, classResponse] = await Promise.all([
+      fetch(`${API}/timetable/?skip=0&limit=100`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API}/classes/`, { headers: { 'Authorization': `Bearer ${token}` } })
+    ]);
+    if (!timetableResponse.ok || !classResponse.ok) {
+      target.innerHTML = '<div class="empty">The fixed timetable could not be loaded.</div>';
+      return;
+    }
+
+    const [timetables, classes] = await Promise.all([timetableResponse.json(), classResponse.json()]);
+    const classesById = new Map(classes.map(classItem => [classItem.id, classItem]));
+    const department = currentStudentDepartment;
+    const departmentClasses = classes.filter(classItem => classItem.department === department);
+    if (!departmentClasses.length) {
+      target.innerHTML = `<div class="empty">No ${escapeHtml(department)} timetable has been published.</div>`;
+      return;
+    }
+    const departmentClassIds = new Set(departmentClasses.map(classItem => classItem.id));
+      const departmentEntries = timetables.filter(entry => departmentClassIds.has(entry.class_id));
+      const byDayAndTime = new Map(departmentEntries.map(entry => [`${entry.day_of_week}|${entry.start_time.slice(0, 5)}`, entry]));
+      const rows = timetableDays.map(day => `
+        <tr>
+          <th scope="row">${day.slice(0, 3).toUpperCase()}</th>
+          ${timetablePeriods.map(period => {
+            const entry = byDayAndTime.get(`${day}|${period.start}`);
+            const classItem = entry ? classesById.get(entry.class_id) : null;
+            if (!classItem) return '<td><span class="no-class">—</span></td>';
+            const teacherCode = classItem.name.match(/\((T-(?:CSE|ECE)-0[12])\)$/)?.[1] || `Teacher ${classItem.teacher_id}`;
+            const subjectName = classItem.name.replace(/\s+\(T-(?:CSE|ECE)-0[12]\)$/, '');
+            return `<td><strong>${escapeHtml(subjectName)}</strong><small>${escapeHtml(teacherCode)}</small></td>`;
+          }).join('')}
+        </tr>`).join('');
+
+    target.innerHTML = `
+      <section class="student-timetable-department" aria-label="${escapeHtml(department)} fixed timetable">
+        <h2>${escapeHtml(department)} — Fixed Timetable</h2>
+        <div class="student-timetable-scroll">
+          <table class="student-timetable-table">
+            <thead><tr><th scope="col">Day</th>${timetablePeriods.map(period => `<th scope="col">${period.label}</th>`).join('')}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </section>`;
   }
 
   function logout() { sessionStorage.clear(); window.location.href = '/'; }
 
-  const sectionTitles = { overview:'My Attendance Overview', history:'Attendance History', leave:'Leave Request', calendar:'Academic Calendar' };
+  function openStudentSection(id) {
+    document.querySelector(`.nav-item[data-section="${id}"]`)?.click();
+  }
+
+  const sectionTitles = { overview:'Student Home', history:'Attendance', timetable:'Weekly Timetable', leave:'Leave Request', calendar:'Academic Calendar' };
   function showSection(id) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => {
+      n.classList.remove('active');
+      n.removeAttribute('aria-current');
+    });
     document.getElementById('sec-' + id).classList.add('visible');
-    event.currentTarget.classList.add('active');
+    const activeItem = event.currentTarget.closest('.nav-item');
+    if (activeItem) {
+      activeItem.classList.add('active');
+      activeItem.setAttribute('aria-current', 'page');
+    }
     document.getElementById('page-title').textContent = sectionTitles[id];
     if (id === 'history') loadHistory();
+    if (id === 'timetable') loadFixedTimetable();
   }
 
   init();

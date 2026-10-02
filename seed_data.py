@@ -3,13 +3,14 @@ import asyncio
 from datetime import date, time
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, engine, Base
-from app.core.security import get_password_hash
+from app.core.security import hash_password as get_password_hash
 from app.models.user import User, UserRole
 from app.models.student import Student
 from app.models.class_ import Class
 from app.models.timetable import Timetable
 from app.models.academic_event import AcademicEvent, EventType
 from app.models.class_session import ClassSession, SessionType
+from app.models.notice import Notice
 
 def seed_data():
     db = SessionLocal()
@@ -67,6 +68,14 @@ def seed_data():
         AcademicEvent(title="Semester ends for S3/S5/S7", event_type=EventType.other, start_date=date(2025, 10, 17), end_date=date(2025, 10, 17), created_by=admin.id)
     ]
     db.add_all(events)
+    db.commit()
+
+    # 7. Create institutional notices for the dashboard board.
+    notices = [
+        Notice(title="Semester Begins", message="Welcome to the new academic term. Please check the updated timetable and complete registration tasks.", notice_type="Announcement", created_by=admin.id),
+        Notice(title="Internal Exam Updates", message="The internal examination timetable is available. Students should verify their hall allotments and attendance status.", notice_type="Exam Notice", created_by=admin.id),
+    ]
+    db.add_all(notices)
     db.commit()
 
     print("Seed data successfully injected into the database!")

@@ -6,5 +6,6 @@ from app.repositories import (
     class_session_repository,
     academic_event_repository,
     timetable_repository,
-    workflow_repository
+    workflow_repository,
+    notice_repository
 )

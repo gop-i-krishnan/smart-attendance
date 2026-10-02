@@ -1,10 +1,13 @@
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from datetime import date as date_type
-from app.models.class_session import ClassSession
+from app.models.class_session import ClassSession, SessionType, ClassSessionStatus
 from app.schemas.class_session import ClassSessionCreate
+
 
 def get_class_session(db: Session, session_id: int):
     return db.query(ClassSession).filter(ClassSession.id == session_id).first()
+
 
 def create_class_session(db: Session, data: ClassSessionCreate):
     session_record = ClassSession(
@@ -15,15 +18,66 @@ def create_class_session(db: Session, data: ClassSessionCreate):
         start_time=data.start_time,
         end_time=data.end_time,
         room=data.room,
-        session_type=data.session_type
+        session_type=data.session_type,
+        status=ClassSessionStatus.scheduled.value,
+        is_open=False,
     )
     db.add(session_record)
     db.commit()
     db.refresh(session_record)
     return session_record
 
+
 def get_sessions_by_class_and_date(db: Session, class_id: int, date: date_type):
     return db.query(ClassSession).filter(
         ClassSession.class_id == class_id,
         ClassSession.date == date
     ).all()
+
+
+def get_sessions_by_teacher(db: Session, teacher_id: int):
+    return db.query(ClassSession).filter(ClassSession.actual_teacher_id == teacher_id).all()
+
+
+def get_sessions_for_date(db: Session, target_date: date_type):
+    return db.query(ClassSession).filter(ClassSession.date == target_date).all()
+
+
+def open_session(db: Session, session_id: int):
+    session = get_class_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.session_type == SessionType.cancelled:
+        raise HTTPException(status_code=400, detail="Cancelled sessions cannot be opened")
+    session.status = ClassSessionStatus.conducted.value
+    session.is_open = True
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def close_session(db: Session, session_id: int):
+    session = get_class_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    session.is_open = False
+    session.status = ClassSessionStatus.conducted.value
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def update_session_status(db: Session, session_id: int, status: str):
+    session = get_class_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    session.status = status
+    if status == ClassSessionStatus.cancelled.value:
+        session.session_type = SessionType.cancelled
+        session.is_open = False
+    elif status == ClassSessionStatus.rescheduled.value:
+        session.session_type = SessionType.rescheduled
+        session.is_open = False
+    db.commit()
+    db.refresh(session)
+    return session

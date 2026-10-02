@@ -45,7 +45,7 @@ def generate_daily_sessions(db: Session, target_date: date_type):
         # 3. Generate Session Reality
         # If it's a holiday, the class is cancelled automatically
         session_type = SessionType.cancelled if is_holiday else SessionType.regular
-        
+
         # Create the session record
         new_session = ClassSessionCreate(
             class_id=timetable.class_id,
@@ -57,8 +57,14 @@ def generate_daily_sessions(db: Session, target_date: date_type):
             room=timetable.room,
             session_type=session_type
         )
-        
+
         db_session = class_session_repository.create_class_session(db, new_session)
+        if is_holiday:
+            db_session.session_type = SessionType.cancelled
+            db_session.status = "Cancelled"
+            db_session.is_open = False
+            db.commit()
+            db.refresh(db_session)
         created_sessions.append(db_session)
         
     return created_sessions

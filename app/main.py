@@ -6,7 +6,7 @@ from app.config import settings
 from app.api.v1.routes import (
     health, auth, attendance, students, classes,
     reports, calendar, timetable, class_session,
-    workflows, analytics
+    workflows, analytics, notices, assistant
 )
 from app.core.database import engine, Base
 import app.models
@@ -23,6 +23,8 @@ app = FastAPI(
     )
 )
 
+app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent.parent / "static"), name="static")
+
 # ── Core Infrastructure ───────────────────────────────────────────────────────
 app.include_router(health.router,    prefix="/api/v1",             tags=["Health"])
 app.include_router(auth.router,      prefix="/api/v1/auth",         tags=["Auth"])
@@ -35,6 +37,8 @@ app.include_router(classes.router,   prefix="/api/v1/classes",      tags=["Class
 app.include_router(timetable.router, prefix="/api/v1/timetable",    tags=["Timetable"])
 app.include_router(calendar.router,  prefix="/api/v1/calendar",     tags=["Academic Calendar"])
 app.include_router(class_session.router, prefix="/api/v1/session",  tags=["Class Session Engine"])
+app.include_router(notices.router,    prefix="/api/v1/notices",     tags=["Notices"])
+app.include_router(assistant.router,   prefix="/api/v1/assistant",   tags=["AI Assistant"])
 
 # ── Attendance ────────────────────────────────────────────────────────────────
 app.include_router(attendance.router, prefix="/api/v1/attendance",  tags=["Attendance"])

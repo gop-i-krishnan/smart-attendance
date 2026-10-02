@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SecureTrack X — Teacher Portal</title>
   <meta name="description" content="Teacher portal for managing class sessions, marking attendance and reviewing analytics.">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -159,9 +159,21 @@
 
     .empty { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
     .loading { text-align:center; padding:40px; color:var(--muted); }
+    .notice-stack { display:flex; flex-direction:column; gap:12px; }
+    .notice-item { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+    .assistant-box { background:linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.08)); border:1px solid var(--border); border-radius:12px; padding:18px; }
   </style>
+  <link href="/static/portal.css?v=9" rel="stylesheet">
 </head>
 <body>
+
+<header class="institutional-masthead">
+  <a class="institution-lockup" href="/teacher" aria-label="Rajagiri School of Engineering and Technology portal">
+    <span class="institution-mark" aria-hidden="true">R</span>
+    <span><strong class="institution-name">Rajagiri School of Engineering &amp; Technology</strong><small class="institution-meta">Autonomous · Kakkanad, Kochi</small></span>
+  </a>
+  <div class="masthead-context"><span class="campus-label">Academic services</span><span class="masthead-divider"></span><span class="masthead-detail">Faculty portal</span></div>
+</header>
 
 <div class="layout">
 
@@ -169,7 +181,7 @@
   <nav class="sidebar">
     <div class="sidebar-brand">
       <div class="brand-icon">🎓</div>
-      <div class="brand-text">Secure<span>Track</span> X</div>
+      <div class="brand-text">RSET <span>RSMS</span></div>
     </div>
     <div class="nav-section">Teacher</div>
     <div class="nav-item active" onclick="showTab('sessions')">📅 Daily Sessions</div>
@@ -224,24 +236,25 @@
 
           <!-- Attendance marking panel -->
           <div class="mark-panel" id="mark-panel">
-            <h3>✍️ Mark Attendance — Session <span id="active-session-label"></span></h3>
-            <div class="mark-form">
-              <div>
-                <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Student ID</label>
-                <input type="number" id="mark-student-id" placeholder="e.g. 1" style="padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;width:100px;" />
-              </div>
-              <div>
-                <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Status</label>
-                <select id="mark-status" style="padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
-                  <option value="present">✅ Present</option>
-                  <option value="absent">❌ Absent</option>
-                  <option value="late">🕐 Late</option>
-                </select>
-              </div>
-              <button class="btn btn-success" onclick="submitAttendance()">Submit</button>
-            </div>
-            <div class="mark-result" id="mark-result"></div>
+            <h3>Manual Attendance — Session <span id="active-session-label"></span></h3>
+            <p class="manual-attendance-help" id="teacher-roster-caption"></p>
+            <div id="teacher-roster-status" class="form-msg"></div>
+            <div id="teacher-attendance-roster"><div class="loading">Choose a class session to load its roster.</div></div>
           </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+              <div><div class="card-title">📢 Institutional Notice Board</div><div class="card-subtitle">Announcements that affect staff and students</div></div>
+            </div>
+            <div id="teacher-notices" class="notice-stack"><div class="loading">Loading notices…</div></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+              <div><div class="card-title">🤖 AI Guidance</div><div class="card-subtitle">Actionable priorities for the day</div></div>
+            </div>
+            <div id="teacher-assistant" class="assistant-box"><div class="loading">Loading guidance…</div></div>
         </div>
       </div>
 
@@ -288,6 +301,7 @@
   if (!token) window.location.href = '/';
 
   let activeSessionId = null;
+  let activeClassId = null;
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   document.getElementById('sidebar-email').textContent = email || '—';
@@ -325,6 +339,42 @@
     document.getElementById('s-safe').textContent   = data.filter(s => s.risk === 'safe').length;
     document.getElementById('s-warn').textContent   = data.filter(s => s.risk === 'warning').length;
     document.getElementById('s-danger').textContent = data.filter(s => s.risk === 'danger').length;
+    loadTeacherNotices();
+    loadAssistantSummary();
+  }
+
+  async function loadTeacherNotices() {
+    const res = await fetch(`${API}/notices/`, { headers: h() });
+    const notices = await res.json();
+    const target = document.getElementById('teacher-notices');
+    if (!res.ok || notices.length === 0) {
+      target.innerHTML = '<div class="empty">No active notices.</div>';
+      return;
+    }
+    target.innerHTML = notices.map(n => `
+      <div class="notice-item">
+        <div style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">${n.notice_type || 'Notice'}</div>
+        <div style="font-size:14px;font-weight:700">${n.title}</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:6px">${n.message}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadAssistantSummary() {
+    const res = await fetch(`${API}/assistant/`, { headers: h() });
+    const ai = await res.json();
+    const target = document.getElementById('teacher-assistant');
+    if (!res.ok) {
+      target.innerHTML = '<div class="empty">AI guidance unavailable.</div>';
+      return;
+    }
+    target.innerHTML = `
+      <div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase">${ai.header}</div>
+      <div style="margin-top:12px;font-size:14px;line-height:1.7;color:var(--text)">${ai.summary}</div>
+      <ul style="margin-top:12px;padding-left:18px;color:var(--muted);font-size:12px;line-height:1.8">
+        ${ai.priority_actions.map(item => `<li>${item}</li>`).join('')}
+      </ul>
+    `;
   }
 
   // ── Sessions ──────────────────────────────────────────────────────────────
@@ -351,40 +401,86 @@
           </div>
           <div class="session-actions">
             ${typeBadge}
-            ${!isCancelled ? `<button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="openMarkPanel(${s.id})">Mark Attendance</button>` : ''}
+            ${!isCancelled ? `<button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="openMarkPanel(${s.id}, ${s.class_id})">Mark Attendance</button>` : ''}
             ${!isCancelled ? `<button class="btn btn-danger" style="font-size:11px;padding:5px 12px;" onclick="cancelSess(${s.id})">Cancel</button>` : ''}
           </div>
         </div>`;
     }).join('');
   }
 
-  function openMarkPanel(sessionId) {
+  async function openMarkPanel(sessionId, classId) {
     activeSessionId = sessionId;
+    activeClassId = classId;
     document.getElementById('active-session-label').textContent = `#${sessionId}`;
-    document.getElementById('mark-result').className = 'mark-result';
-    document.getElementById('mark-result').textContent = '';
     document.getElementById('mark-panel').className = 'mark-panel visible';
+    document.getElementById('teacher-attendance-roster').innerHTML = '<div class="loading">Loading class roster…</div>';
     document.getElementById('mark-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await loadTeacherRoster(classId);
   }
 
-  async function submitAttendance() {
-    const studentId = parseInt(document.getElementById('mark-student-id').value);
-    const status    = document.getElementById('mark-status').value;
-    const result    = document.getElementById('mark-result');
-    if (!studentId || !activeSessionId) return;
+  async function loadTeacherRoster(classId) {
+    const target = document.getElementById('teacher-attendance-roster');
+    const status = document.getElementById('teacher-roster-status');
+    const [studentsRes, classesRes, attendanceRes] = await Promise.all([
+      fetch(`${API}/students/`, { headers: h() }),
+      fetch(`${API}/classes/`, { headers: h() }),
+      fetch(`${API}/attendance/session/${activeSessionId}`, { headers: h() })
+    ]);
+    if (!studentsRes.ok || !classesRes.ok || !attendanceRes.ok) {
+      target.innerHTML = '<div class="empty">Could not load the roster for this session.</div>';
+      return;
+    }
+    const [students, classes, records] = await Promise.all([studentsRes.json(), classesRes.json(), attendanceRes.json()]);
+    const classItem = classes.find(item => item.id === classId);
+    if (!classItem) {
+      target.innerHTML = '<div class="empty">The class for this session was not found.</div>';
+      return;
+    }
+    const recordedByStudent = new Map(records.map(record => [record.student_id, record]));
+    const roster = students.filter(student => student.department === classItem.department);
+    document.getElementById('teacher-roster-caption').textContent = `${classItem.name} · ${classItem.department} · ${roster.length} students`;
+    status.textContent = '';
+    if (roster.length === 0) {
+      target.innerHTML = '<div class="empty">No students are registered in this department.</div>';
+      return;
+    }
+    target.innerHTML = `
+      <div class="manual-roster-scroll"><table class="manual-roster-table">
+        <thead><tr><th>Roll Number</th><th>Department</th><th>Attendance</th><th>Action</th></tr></thead>
+        <tbody>${roster.map(student => {
+          const existing = recordedByStudent.get(student.id);
+          const currentStatus = existing?.status || 'present';
+          return `<tr>
+            <td><strong>${student.roll_number}</strong></td>
+            <td>${student.department}</td>
+            <td><select id="teacher-status-${student.id}" ${existing ? 'disabled' : ''} aria-label="Attendance for ${student.roll_number}">
+              <option value="present" ${currentStatus === 'present' ? 'selected' : ''}>Present</option>
+              <option value="absent" ${currentStatus === 'absent' ? 'selected' : ''}>Absent</option>
+              <option value="late" ${currentStatus === 'late' ? 'selected' : ''}>Late</option>
+            </select></td>
+            <td>${existing ? `<span class="manual-marked">Saved: ${existing.status}</span>` : `<button class="btn btn-success manual-mark-button" onclick="markRosterStudent(${student.id})">Mark</button>`}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`;
+  }
 
+  async function markRosterStudent(studentId) {
+    if (!studentId || !activeSessionId) return;
+    const statusElement = document.getElementById(`teacher-status-${studentId}`);
+    const statusMessage = document.getElementById('teacher-roster-status');
     const res = await fetch(`${API}/attendance/mark`, {
       method: 'POST',
       headers: { ...h(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_id: studentId, class_session_id: activeSessionId, status })
+      body: JSON.stringify({ student_id: studentId, class_session_id: activeSessionId, status: statusElement.value })
     });
     const data = await res.json();
     if (res.ok) {
-      result.textContent = `✅ Student ${studentId} marked as ${status} for Session #${activeSessionId}.`;
-      result.className = 'mark-result ok';
+      statusMessage.textContent = `Attendance saved for student ${studentId}.`;
+      statusMessage.className = 'form-msg ok';
+      await loadTeacherRoster(activeClassId);
     } else {
-      result.textContent = `❌ ${data.detail || 'Failed to mark attendance.'}`;
-      result.className = 'mark-result err';
+      statusMessage.textContent = res.status === 409 ? 'This student is already marked for this session.' : (data.detail || 'Failed to mark attendance.');
+      statusMessage.className = 'form-msg err';
     }
     loadStats();
   }
