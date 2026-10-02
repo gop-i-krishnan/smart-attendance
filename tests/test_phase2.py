@@ -24,6 +24,9 @@ from app.schemas.timetable import TimetableCreate
 from app.services.assistant_service import build_ai_assistant_summary
 from seed_demo_data import COURSE_KEY_TO_CODE, FIXED_WEEKLY_PLAN, PERIODS
 
+from app.schemas.user import UserCreate
+from app.services import auth_service
+
 
 @pytest.fixture
 def db_session() -> Session:
@@ -229,3 +232,16 @@ def test_student_assistant_summary_uses_attendance_risk(db_session: Session):
     assert report["risk"] == "danger"
     assert report["classes_to_recover"] == 4
     assert "50%" in report["summary"]
+
+def test_public_registration_rejects_admin_role(db_session: Session):
+    user_data = UserCreate(
+        full_name="Unauthorized Admin",
+        email="unauthorized-admin@example.com",
+        password="StrongPassword123",
+        role=UserRole.admin,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        auth_service.register_user(db_session, user_data)
+
+    assert exc_info.value.status_code == 403

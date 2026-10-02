@@ -3,16 +3,25 @@ from app.repositories import user_repository
 from app.core.security import hash_password, verify_password, create_access_token
 from app.schemas.user import UserCreate
 from fastapi import HTTPException, status
+from app.models.user import UserRole
 
 def register_user(db: Session, user_data: UserCreate):
-    """Register a new user — checks for duplicate email first"""
+    if user_data.role != UserRole.student:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Public registration is restricted to student accounts"
+        )
+
     existing = user_repository.get_user_by_email(db, user_data.email)
+
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
+
     hashed = hash_password(user_data.password)
+
     return user_repository.create_user(
         db,
         full_name=user_data.full_name,
