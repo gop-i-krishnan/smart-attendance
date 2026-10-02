@@ -8,11 +8,6 @@ from app.api.v1.routes import (
     reports, calendar, timetable, class_session,
     workflows, analytics, notices, assistant
 )
-from app.core.database import engine, Base
-import app.models
-
-Base.metadata.create_all(bind=engine)
-
 app = FastAPI(
     title="SecureTrack X — Academic Attendance Platform",
     version="2.0.0",
