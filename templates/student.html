@@ -363,24 +363,12 @@
   const API   = window.location.origin + '/api/v1';
   const token = sessionStorage.getItem('token');
   const email = sessionStorage.getItem('email');
-  const demoStudentRollByEmail = {
-    'student1@rset.edu': 'U2301079',
-    'student2@rset.edu': 'U2301098',
-    'alice@rset.edu': 'U2301000',
-    'student3@rset.edu': 'U2301101',
-    'student4@rset.edu': 'U2301102',
-    'ece.student1@rset.edu': 'E2301001',
-    'ece.student2@rset.edu': 'E2301002',
-    'ece.student3@rset.edu': 'E2301003',
-    'ece.student4@rset.edu': 'E2301004',
-    'ece.student5@rset.edu': 'E2301005'
-  };
   if (!token) window.location.href = '/';
 
   document.getElementById('s-email').textContent  = email || '—';
   document.getElementById('student-info-label').textContent = `Logged in user: ${email || 'Student'}`;
 
-  // ── Resolve current student ID by listing students and matching email ─────
+  // ── Resolve current student ID using /me endpoint ─────
   let myStudentId = null;
   let currentStudentDepartment = null;
   let studentProfilePromise = null;
@@ -388,12 +376,9 @@
   function getCurrentStudentProfile() {
     if (!studentProfilePromise) {
       studentProfilePromise = (async () => {
-        const rollNumber = demoStudentRollByEmail[(email || '').toLowerCase()];
-        if (!rollNumber) return null;
-        const response = await fetch(`${API}/students/`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const response = await fetch(`${API}/students/me`, { headers: { 'Authorization': `Bearer ${token}` } });
         if (!response.ok) return null;
-        const students = await response.json();
-        return students.find(student => student.roll_number === rollNumber) || null;
+        return await response.json();
       })().catch(() => null);
     }
     return studentProfilePromise;
@@ -429,6 +414,26 @@
   }
 
   function renderOverview(me) {
+    if (me.total_classes === 0) {
+      document.getElementById('hero-pct').textContent = '—%';
+      document.getElementById('hero-pct').style.color = 'var(--text)';
+      document.getElementById('hero-sub').textContent = 'No attendance data available yet.';
+      document.getElementById('pct-fill').style.width = '0%';
+      document.getElementById('q-present').textContent = '—';
+      document.getElementById('q-absent').textContent = '—';
+      document.getElementById('q-late').textContent = '—';
+      document.getElementById('f-can-miss').textContent = '—';
+      document.getElementById('f-to-recover').textContent = '—';
+      const pill = document.getElementById('risk-pill');
+      pill.style.display = 'inline-flex';
+      pill.className = 'risk-pill risk-safe';
+      pill.style.background = 'rgba(255,255,255,0.1)';
+      pill.style.color = 'var(--muted)';
+      pill.style.borderColor = 'rgba(255,255,255,0.2)';
+      pill.textContent = 'No Data';
+      return;
+    }
+
     const p = me.percentage;
     const color = p >= 85 ? 'var(--success)' : p >= 75 ? 'var(--warn)' : 'var(--danger)';
     document.getElementById('hero-pct').textContent = p + '%';
@@ -446,10 +451,18 @@
     const riskMap = {
       safe:    { cls:'risk-safe',    text:'✅ Safe' },
       warning: { cls:'risk-warning', text:'⚠️ Warning' },
-      danger:  { cls:'risk-danger',  text:'🚨 Danger' }
+      danger:  { cls:'risk-danger',  text:'🚨 Danger' },
+      no_data: { cls:'risk-safe',    text:'No Data' }
     };
-    const r = riskMap[me.risk] || riskMap['safe'];
+    const r = riskMap[me.risk] || riskMap['no_data'];
     pill.className = `risk-pill ${r.cls}`;
+    if (r.text === 'No Data') {
+      pill.style.background = 'rgba(255,255,255,0.1)';
+      pill.style.color = 'var(--muted)';
+      pill.style.borderColor = 'rgba(255,255,255,0.2)';
+    } else {
+      pill.style = "display:inline-flex";
+    }
     pill.textContent = r.text;
   }
 

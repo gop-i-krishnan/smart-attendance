@@ -209,12 +209,7 @@
     <button class="btn-primary" onclick="doLogin()" id="login-btn">Authenticate</button>
     <div class="error-msg" id="error-msg"></div>
 
-    <div class="demo-creds">
-      <strong>🔑 Demo Access Credentials</strong>
-      Admin: admin@rset.edu / password<br>
-      Teacher: teacher@rset.edu / password<br>
-      Student: student1@rset.edu / password
-    </div>
+
   </div>
 </div>
 
@@ -227,10 +222,19 @@
     selectedRole = role;
     document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
     event.target.classList.add('active');
-    // Pre-fill demo credentials
-    const demos = { admin: 'admin@rset.edu', teacher: 'teacher@rset.edu', student: 'student1@rset.edu' };
-    document.getElementById('email').value = demos[role];
-    document.getElementById('password').value = 'password';
+  }
+
+  function parseJwt(token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch(e) {
+      return null;
+    }
   }
 
   async function doLogin() {
@@ -239,7 +243,7 @@
     const btn   = document.getElementById('login-btn');
     const err   = document.getElementById('error-msg');
     err.style.opacity = 0;
-    setTimeout(() => { err.textContent = ''; err.style.opacity = 1; }, 200);
+    setTimeout(() => {err.textContent = ''; err.style.opacity = 1; }, 200);
     
     const originalText = btn.textContent;
     btn.innerHTML = '<span style="display:inline-block; animation:spin 1s linear infinite">⏳</span> Authenticating...';
@@ -260,13 +264,29 @@
         return; 
       }
       const data = await res.json();
-      sessionStorage.setItem('token', data.access_token);
+      const token = data.access_token;
+      sessionStorage.setItem('token', token);
       sessionStorage.setItem('email', email);
       
+      const payload = parseJwt(token);
+      let backendRole = selectedRole;
+      if (payload && payload.role) {
+          backendRole = payload.role.toLowerCase();
+          if (backendRole.startsWith('userrole.')) {
+              backendRole = backendRole.split('.')[1];
+          }
+      }
+
       // Success animation before redirect
       btn.innerHTML = '✅ Success';
       btn.style.background = 'var(--success)';
-      setTimeout(() => { window.location.href = roleRedirect[selectedRole]; }, 500);
+      setTimeout(() => {
+        if (roleRedirect[backendRole]) {
+            window.location.href = roleRedirect[backendRole];
+        } else {
+            window.location.href = '/dashboard';
+        }
+      }, 500);
     } catch(e) {
       err.textContent = 'Network error. Cannot connect to RSMS server.';
     } finally {
@@ -276,12 +296,6 @@
       }
     }
   }
-  
-  // Initialize with admin role demo creds on load
-  window.onload = () => {
-    document.getElementById('email').value = 'admin@rset.edu';
-    document.getElementById('password').value = 'password';
-  };
 </script>
 <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
 </body>

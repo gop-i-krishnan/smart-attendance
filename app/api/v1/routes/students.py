@@ -23,3 +23,14 @@ def list_students(
     current_user=Depends(require_admin)
 ):
     return student_repository.get_all_students(db)
+
+@router.get("/me", response_model=StudentOut)
+def get_current_student_profile(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    student = student_repository.get_student_by_user_id(db, current_user.id)
+    if not student:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Student profile not found")
+    return student
