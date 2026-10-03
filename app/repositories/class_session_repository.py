@@ -10,7 +10,22 @@ def get_class_session(db: Session, session_id: int):
     return db.query(ClassSession).filter(ClassSession.id == session_id).first()
 
 
-def create_class_session(db: Session, data: ClassSessionCreate):
+def create_class_session(
+    db: Session,
+    data: ClassSessionCreate,
+    requesting_user
+):
+    # Teachers can only create sessions assigned to themselves.
+    # Admins can create sessions for any teacher.
+    if (
+        requesting_user.role != UserRole.admin
+        and data.actual_teacher_id != requesting_user.id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Teachers can only create sessions assigned to themselves"
+        )
+
     session_record = ClassSession(
         class_id=data.class_id,
         timetable_id=data.timetable_id,
@@ -23,9 +38,11 @@ def create_class_session(db: Session, data: ClassSessionCreate):
         status=ClassSessionStatus.scheduled.value,
         is_open=False,
     )
+
     db.add(session_record)
     db.commit()
     db.refresh(session_record)
+
     return session_record
 
 
@@ -116,17 +133,50 @@ def close_session(
     return session
 
 
-def update_session_status(db: Session, session_id: int, status: str):
+def update_session_status(
+    db: Session,
+    session_id: int,
+    status: str,
+    requesting_user
+):
     session = get_class_session(db, session_id)
+
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    session.status = status
-    if status == ClassSessionStatus.cancelled.value:
+        raise HTTPException(
+            status_code=404,
+            detail="Session not found"
+        )
+
+    # Only the currently assigned teacher or an admin
+    # may modify this session's status.
+    if (
+        requesting_user.role != UserRole.admin
+        and session.actual_teacher_id != requesting_user.id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to modify this session"
+        )
+
+    try:
+        validated_status = ClassSessionStatus(status)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid session status: {status}"
+        )
+
+    session.status = validated_status.value
+
+    if validated_status == ClassSessionStatus.cancelled:
         session.session_type = SessionType.cancelled
         session.is_open = False
-    elif status == ClassSessionStatus.rescheduled.value:
+
+    elif validated_status == ClassSessionStatus.rescheduled:
         session.session_type = SessionType.rescheduled
         session.is_open = False
+
     db.commit()
     db.refresh(session)
+
     return session

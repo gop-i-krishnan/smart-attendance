@@ -5,7 +5,7 @@ from sqlalchemy import (
     Date,
     Enum,
     DateTime,
-    UniqueConstraint,
+    Index,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -21,10 +21,11 @@ class Attendance(Base):
     __tablename__ = "attendance"
 
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "uq_attendance_student_session",
             "student_id",
             "class_session_id",
-            name="uq_attendance_student_session",
+            unique=True,
         ),
     )
 

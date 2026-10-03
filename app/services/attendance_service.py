@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from starlette import status as http_status
-from app.repositories import attendance_repository, student_repository, class_session_repository
+from app.repositories import attendance_repository, student_repository, class_session_repository, enrollment_repository
 from app.models.attendance import AttendanceStatus
 from app.models.class_session import SessionType
 from app.models.user import UserRole
@@ -54,7 +54,20 @@ def mark_attendance(
                 detail="You are not authorized to mark attendance for this session"
             )
 
-    # 4. Prevent duplicate attendance
+    # 4. Student must be actively enrolled in the session's class
+    enrollment = enrollment_repository.get_active_enrollment(
+        db,
+        student_id,
+        session_record.class_id,
+    )
+
+    if not enrollment:
+        raise HTTPException(
+            status_code=403,
+            detail="Student is not enrolled in this class"
+        )
+
+    # 5. Prevent duplicate attendance
     existing = attendance_repository.get_attendance_record(
         db,
         student_id,
@@ -67,7 +80,7 @@ def mark_attendance(
             detail="Attendance already marked for this student in this session"
         )
 
-    # 5. Create attendance
+    # 6. Create attendance
     return attendance_repository.create_attendance(
         db,
         student_id,

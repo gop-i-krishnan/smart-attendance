@@ -7,5 +7,6 @@ from app.repositories import (
     academic_event_repository,
     timetable_repository,
     workflow_repository,
-    notice_repository
+    notice_repository,
+    enrollment_repository,
 )

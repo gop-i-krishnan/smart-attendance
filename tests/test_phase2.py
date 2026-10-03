@@ -14,6 +14,7 @@ from app.models.attendance import Attendance, AttendanceStatus
 from app.models.class_ import Class
 from app.models.class_session import ClassSession, SessionType, ClassSessionStatus
 from app.models.student import Student
+from app.models.enrollment import Enrollment
 from app.models.timetable import Timetable
 from app.models.user import User, UserRole
 from app.repositories import academic_event_repository, class_session_repository, timetable_repository, student_repository
@@ -70,6 +71,21 @@ def _seed_teacher_and_class(db: Session) -> Class:
     db.commit()
     db.refresh(class_obj)
     return class_obj
+
+def _enroll_student_in_class(
+    db: Session,
+    student: Student,
+    class_obj: Class,
+) -> Enrollment:
+    enrollment = Enrollment(
+        student_id=student.id,
+        class_id=class_obj.id,
+        is_active=True,
+    )
+    db.add(enrollment)
+    db.commit()
+    db.refresh(enrollment)
+    return enrollment
 
 
 def test_fixed_timetable_covers_both_departments_and_all_periods():
@@ -162,6 +178,278 @@ def test_session_can_be_opened_and_closed(db_session: Session):
     closed = class_session_repository.close_session(db_session, session.id, class_obj.teacher)
     assert closed.is_open is False
 
+def test_teacher_can_create_session_assigned_to_self(db_session: Session):
+    class_obj = _seed_teacher_and_class(db_session)
+    teacher = class_obj.teacher
+
+    data = ClassSessionCreate(
+        class_id=class_obj.id,
+        timetable_id=None,
+        actual_teacher_id=teacher.id,
+        date=date(2026, 10, 7),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+        session_type=SessionType.regular,
+    )
+
+    session = class_session_repository.create_class_session(
+        db_session,
+        data,
+        teacher,
+    )
+
+    assert session.actual_teacher_id == teacher.id
+    assert session.class_id == class_obj.id
+    assert session.status == ClassSessionStatus.scheduled.value
+    assert session.is_open is False
+
+
+def test_teacher_cannot_create_session_for_another_teacher(
+    db_session: Session,
+):
+    class_obj = _seed_teacher_and_class(db_session)
+    teacher_one = class_obj.teacher
+
+    teacher_two = User(
+        full_name="Teacher Two",
+        email="teacher2@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+    db_session.add(teacher_two)
+    db_session.commit()
+    db_session.refresh(teacher_two)
+
+    data = ClassSessionCreate(
+        class_id=class_obj.id,
+        timetable_id=None,
+        actual_teacher_id=teacher_two.id,
+        date=date(2026, 10, 8),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+        session_type=SessionType.regular,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        class_session_repository.create_class_session(
+            db_session,
+            data,
+            teacher_one,
+        )
+
+    assert exc_info.value.status_code == 403
+    assert (
+        exc_info.value.detail
+        == "Teachers can only create sessions assigned to themselves"
+    )
+
+
+def test_admin_can_create_session_for_another_teacher(
+    db_session: Session,
+):
+    class_obj = _seed_teacher_and_class(db_session)
+    teacher_one = class_obj.teacher
+
+    teacher_two = User(
+        full_name="Teacher Two",
+        email="teacher2@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+    admin = User(
+        full_name="Admin One",
+        email="admin@example.com",
+        hashed_password="hashed",
+        role=UserRole.admin,
+    )
+
+    db_session.add_all([teacher_two, admin])
+    db_session.commit()
+    db_session.refresh(teacher_two)
+    db_session.refresh(admin)
+
+    data = ClassSessionCreate(
+        class_id=class_obj.id,
+        timetable_id=None,
+        actual_teacher_id=teacher_two.id,
+        date=date(2026, 10, 9),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+        session_type=SessionType.regular,
+    )
+
+    session = class_session_repository.create_class_session(
+        db_session,
+        data,
+        admin,
+    )
+
+    assert session.actual_teacher_id == teacher_two.id
+    assert session.actual_teacher_id != teacher_one.id
+    assert session.status == ClassSessionStatus.scheduled.value
+
+def test_teacher_can_update_own_session_status(db_session: Session):
+    class_obj = _seed_teacher_and_class(db_session)
+    teacher = class_obj.teacher
+
+    session = ClassSession(
+        class_id=class_obj.id,
+        timetable_id=None,
+        actual_teacher_id=teacher.id,
+        date=date(2026, 10, 10),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.scheduled.value,
+        is_open=False,
+    )
+
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    updated = class_session_repository.update_session_status(
+        db_session,
+        session.id,
+        ClassSessionStatus.conducted.value,
+        teacher,
+    )
+
+    assert updated.status == ClassSessionStatus.conducted.value
+
+
+def test_teacher_cannot_update_another_teachers_session_status(
+    db_session: Session,
+):
+    class_obj = _seed_teacher_and_class(db_session)
+    teacher_one = class_obj.teacher
+
+    teacher_two = User(
+        full_name="Teacher Two",
+        email="status-teacher-two@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+
+    db_session.add(teacher_two)
+    db_session.commit()
+    db_session.refresh(teacher_two)
+
+    session = ClassSession(
+        class_id=class_obj.id,
+        timetable_id=None,
+        actual_teacher_id=teacher_one.id,
+        date=date(2026, 10, 11),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.scheduled.value,
+        is_open=False,
+    )
+
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        class_session_repository.update_session_status(
+            db_session,
+            session.id,
+            ClassSessionStatus.cancelled.value,
+            teacher_two,
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "You are not authorized to modify this session"
+
+    db_session.refresh(session)
+    assert session.status == ClassSessionStatus.scheduled.value
+
+
+def test_admin_can_update_another_teachers_session_status(
+    db_session: Session,
+):
+    class_obj = _seed_teacher_and_class(db_session)
+    teacher = class_obj.teacher
+
+    admin = User(
+        full_name="Admin One",
+        email="status-admin@example.com",
+        hashed_password="hashed",
+        role=UserRole.admin,
+    )
+
+    db_session.add(admin)
+    db_session.commit()
+    db_session.refresh(admin)
+
+    session = ClassSession(
+        class_id=class_obj.id,
+        timetable_id=None,
+        actual_teacher_id=teacher.id,
+        date=date(2026, 10, 12),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.scheduled.value,
+        is_open=False,
+    )
+
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    updated = class_session_repository.update_session_status(
+        db_session,
+        session.id,
+        ClassSessionStatus.cancelled.value,
+        admin,
+    )
+
+    assert updated.status == ClassSessionStatus.cancelled.value
+    assert updated.session_type == SessionType.cancelled
+    assert updated.is_open is False
+
+def test_invalid_session_status_is_rejected(db_session: Session):
+    class_obj = _seed_teacher_and_class(db_session)
+    teacher = class_obj.teacher
+
+    session = ClassSession(
+        class_id=class_obj.id,
+        timetable_id=None,
+        actual_teacher_id=teacher.id,
+        date=date(2026, 10, 13),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.scheduled.value,
+        is_open=False,
+    )
+
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        class_session_repository.update_session_status(
+            db_session,
+            session.id,
+            "InvalidStatus",
+            teacher,
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Invalid session status: InvalidStatus"
+
+    db_session.refresh(session)
+    assert session.status == ClassSessionStatus.scheduled.value
 
 def test_notice_creation_and_ai_summary(db_session: Session):
     admin = User(
@@ -269,7 +557,7 @@ def test_inactive_user_cannot_use_existing_token(db_session: Session):
         get_current_user(token=token, db=db_session)
 
     assert exc_info.value.status_code == 403
-    
+
 def test_student_cannot_list_all_students(db_session: Session):
     student_user = User(
         full_name="Student User",
@@ -350,7 +638,7 @@ def test_student_cannot_access_another_students_data(db_session: Session):
             )
 
     assert exc_info.value.status_code == 403
-    
+
 def test_student_cannot_access_another_student_through_dependency(
     db_session: Session
 ):
@@ -400,7 +688,7 @@ def test_student_cannot_access_another_student_through_dependency(
         )
 
     assert exc_info.value.status_code == 403
-    
+
 def test_teacher_cannot_substitute_another_teachers_session(
     db_session: Session
 ):
@@ -472,7 +760,7 @@ def test_teacher_cannot_substitute_another_teachers_session(
         )
 
     assert exc_info.value.status_code == 403
-    
+
 def test_teacher_cannot_cancel_another_teachers_session(
     db_session: Session
 ):
@@ -531,7 +819,7 @@ def test_teacher_cannot_cancel_another_teachers_session(
         )
 
     assert exc_info.value.status_code == 403
-    
+
 def test_teacher_can_cancel_own_session(db_session: Session):
     teacher = User(
         full_name="Authorized Teacher",
@@ -580,7 +868,7 @@ def test_teacher_can_cancel_own_session(db_session: Session):
     assert cancelled.session_type == SessionType.cancelled
     assert cancelled.status == ClassSessionStatus.cancelled.value
     assert cancelled.is_open is False
-    
+
 def test_admin_can_cancel_any_teachers_session(db_session: Session):
     teacher = User(
         full_name="Session Teacher",
@@ -638,7 +926,7 @@ def test_admin_can_cancel_any_teachers_session(db_session: Session):
     assert cancelled.session_type == SessionType.cancelled
     assert cancelled.status == ClassSessionStatus.cancelled.value
     assert cancelled.is_open is False
-    
+
 def test_teacher_cannot_open_another_teachers_session(
     db_session: Session
 ):
@@ -697,7 +985,7 @@ def test_teacher_cannot_open_another_teachers_session(
         )
 
     assert exc_info.value.status_code == 403
-    
+
 def test_teacher_cannot_close_another_teachers_session(
     db_session: Session
 ):
@@ -756,7 +1044,7 @@ def test_teacher_cannot_close_another_teachers_session(
         )
 
     assert exc_info.value.status_code == 403
-    
+
 def test_teacher_can_close_own_session(db_session: Session):
     teacher = User(
         full_name="Teacher One",
@@ -801,7 +1089,7 @@ def test_teacher_can_close_own_session(db_session: Session):
 
     assert closed.is_open is False
     assert closed.status == ClassSessionStatus.conducted.value
-    
+
 def test_admin_can_close_any_teachers_session(db_session: Session):
     teacher = User(
         full_name="Teacher Two",
@@ -856,7 +1144,7 @@ def test_admin_can_close_any_teachers_session(db_session: Session):
 
     assert closed.is_open is False
     assert closed.status == ClassSessionStatus.conducted.value
-    
+
 def test_duplicate_attendance_is_rejected(db_session: Session):
     class_obj = _seed_teacher_and_class(db_session)
 
@@ -880,6 +1168,7 @@ def test_duplicate_attendance_is_rejected(db_session: Session):
     db_session.add(student)
     db_session.commit()
     db_session.refresh(student)
+    _enroll_student_in_class(db_session, student, class_obj)
 
     session = ClassSession(
         class_id=class_obj.id,
@@ -914,7 +1203,7 @@ def test_duplicate_attendance_is_rejected(db_session: Session):
         )
 
     assert exc_info.value.status_code == 409
-    
+
 def test_database_rejects_duplicate_attendance_pair(db_session: Session):
     class_obj = _seed_teacher_and_class(db_session)
 
@@ -974,7 +1263,7 @@ def test_database_rejects_duplicate_attendance_pair(db_session: Session):
         db_session.commit()
 
     db_session.rollback()
-    
+
 def test_teacher_can_mark_attendance_in_own_open_session(db_session: Session):
     class_obj = _seed_teacher_and_class(db_session)
 
@@ -998,6 +1287,7 @@ def test_teacher_can_mark_attendance_in_own_open_session(db_session: Session):
     db_session.add(student)
     db_session.commit()
     db_session.refresh(student)
+    _enroll_student_in_class(db_session, student, class_obj)
 
     session = ClassSession(
         class_id=class_obj.id,
@@ -1023,7 +1313,117 @@ def test_teacher_can_mark_attendance_in_own_open_session(db_session: Session):
     assert attendance.student_id == student.id
     assert attendance.class_session_id == session.id
     assert attendance.status == AttendanceStatus.present
-    
+
+def test_non_enrolled_student_cannot_mark_attendance(
+    db_session: Session,
+):
+    class_obj = _seed_teacher_and_class(db_session)
+
+    student_user = User(
+        full_name="Non Enrolled Student",
+        email="non-enrolled@example.com",
+        hashed_password="hashed",
+        role=UserRole.student,
+        is_active=True,
+    )
+    db_session.add(student_user)
+    db_session.commit()
+    db_session.refresh(student_user)
+
+    student = Student(
+        user_id=student_user.id,
+        roll_number="NOTENROLLED001",
+        department="CSE",
+        semester=5,
+    )
+    db_session.add(student)
+    db_session.commit()
+    db_session.refresh(student)
+
+    session = ClassSession(
+        class_id=class_obj.id,
+        actual_teacher_id=class_obj.teacher_id,
+        date=date.today(),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.conducted.value,
+        is_open=True,
+    )
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        attendance_service.mark_attendance(
+            db_session,
+            student_id=student.id,
+            class_session_id=session.id,
+            att_status=AttendanceStatus.present,
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "Student is not enrolled in this class"
+
+def test_inactive_enrollment_cannot_mark_attendance(
+    db_session: Session,
+):
+    class_obj = _seed_teacher_and_class(db_session)
+
+    student_user = User(
+        full_name="Inactive Enrollment Student",
+        email="inactive-enrollment@example.com",
+        hashed_password="hashed",
+        role=UserRole.student,
+        is_active=True,
+    )
+    db_session.add(student_user)
+    db_session.commit()
+    db_session.refresh(student_user)
+
+    student = Student(
+        user_id=student_user.id,
+        roll_number="INACTIVE001",
+        department="CSE",
+        semester=5,
+    )
+    db_session.add(student)
+    db_session.commit()
+    db_session.refresh(student)
+
+    enrollment = Enrollment(
+        student_id=student.id,
+        class_id=class_obj.id,
+        is_active=False,
+    )
+    db_session.add(enrollment)
+    db_session.commit()
+
+    session = ClassSession(
+        class_id=class_obj.id,
+        actual_teacher_id=class_obj.teacher_id,
+        date=date.today(),
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        session_type=SessionType.regular,
+        status=ClassSessionStatus.conducted.value,
+        is_open=True,
+    )
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        attendance_service.mark_attendance(
+            db_session,
+            student_id=student.id,
+            class_session_id=session.id,
+            att_status=AttendanceStatus.present,
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "Student is not enrolled in this class"
+
 def test_teacher_cannot_mark_attendance_in_another_teachers_session(
     db_session: Session,
 ):
@@ -1085,7 +1485,7 @@ def test_teacher_cannot_mark_attendance_in_another_teachers_session(
         )
 
     assert exc_info.value.status_code == 403
-    
+
 def test_attendance_cannot_be_marked_when_session_is_closed(
     db_session: Session,
 ):
@@ -1135,7 +1535,7 @@ def test_attendance_cannot_be_marked_when_session_is_closed(
         )
 
     assert exc_info.value.status_code == 400
-    
+
 def test_attendance_cannot_be_marked_for_cancelled_session(
     db_session: Session,
 ):

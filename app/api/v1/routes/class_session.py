@@ -14,7 +14,11 @@ def create_session(
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
 ):
-    return class_session_repository.create_class_session(db, data)
+    return class_session_repository.create_class_session(
+    db,
+    data,
+    current_user
+)
 
 @router.get("/", response_model=list[ClassSessionOut])
 def get_all_sessions(
@@ -79,7 +83,12 @@ def update_session_status(
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
 ):
-    return class_session_repository.update_session_status(db, session_id, status)
+    return class_session_repository.update_session_status(
+    db,
+    session_id,
+    status,
+    current_user
+)
 
 @router.post("/{session_id}/open", response_model=ClassSessionOut)
 def open_class_session(
