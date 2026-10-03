@@ -122,6 +122,182 @@ def test_timetable_conflict_is_rejected(db_session: Session):
     with pytest.raises(HTTPException):
         timetable_repository.create_timetable(db_session, duplicate)
 
+def test_admin_can_access_any_timetable(db_session: Session):
+    class_obj = _seed_teacher_and_class(db_session)
+
+    timetable = Timetable(
+        class_id=class_obj.id,
+        day_of_week="Monday",
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+    )
+    db_session.add(timetable)
+
+    admin = User(
+        full_name="Admin User",
+        email="admin-timetable@example.com",
+        hashed_password="hashed",
+        role=UserRole.admin,
+    )
+    db_session.add(admin)
+    db_session.commit()
+    db_session.refresh(timetable)
+    db_session.refresh(admin)
+
+    assert timetable_repository.can_access_timetable(
+        db_session,
+        timetable,
+        admin,
+    ) is True
+
+
+def test_teacher_can_access_own_class_timetable(db_session: Session):
+    class_obj = _seed_teacher_and_class(db_session)
+    teacher = class_obj.teacher
+
+    timetable = Timetable(
+        class_id=class_obj.id,
+        day_of_week="Monday",
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+    )
+    db_session.add(timetable)
+    db_session.commit()
+    db_session.refresh(timetable)
+
+    assert timetable_repository.can_access_timetable(
+        db_session,
+        timetable,
+        teacher,
+    ) is True
+
+
+def test_teacher_cannot_access_another_teachers_timetable(
+    db_session: Session,
+):
+    class_obj = _seed_teacher_and_class(db_session)
+
+    teacher_two = User(
+        full_name="Teacher Two",
+        email="teacher-two-timetable@example.com",
+        hashed_password="hashed",
+        role=UserRole.teacher,
+    )
+    db_session.add(teacher_two)
+    db_session.commit()
+    db_session.refresh(teacher_two)
+
+    timetable = Timetable(
+        class_id=class_obj.id,
+        day_of_week="Monday",
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+    )
+    db_session.add(timetable)
+    db_session.commit()
+    db_session.refresh(timetable)
+
+    assert timetable_repository.can_access_timetable(
+        db_session,
+        timetable,
+        teacher_two,
+    ) is False
+
+
+def test_enrolled_student_can_access_class_timetable(
+    db_session: Session,
+):
+    class_obj = _seed_teacher_and_class(db_session)
+
+    student_user = User(
+        full_name="Student One",
+        email="student-timetable@example.com",
+        hashed_password="hashed",
+        role=UserRole.student,
+    )
+    db_session.add(student_user)
+    db_session.commit()
+    db_session.refresh(student_user)
+
+    student = Student(
+        user_id=student_user.id,
+        roll_number="ST-TT-001",
+        department="CSE",
+        semester=5,
+    )
+    db_session.add(student)
+    db_session.commit()
+    db_session.refresh(student)
+
+    _enroll_student_in_class(
+        db_session,
+        student,
+        class_obj,
+    )
+
+    timetable = Timetable(
+        class_id=class_obj.id,
+        day_of_week="Monday",
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+    )
+    db_session.add(timetable)
+    db_session.commit()
+    db_session.refresh(timetable)
+
+    assert timetable_repository.can_access_timetable(
+        db_session,
+        timetable,
+        student_user,
+    ) is True
+
+
+def test_non_enrolled_student_cannot_access_class_timetable(
+    db_session: Session,
+):
+    class_obj = _seed_teacher_and_class(db_session)
+
+    student_user = User(
+        full_name="Student Two",
+        email="student-two-timetable@example.com",
+        hashed_password="hashed",
+        role=UserRole.student,
+    )
+    db_session.add(student_user)
+    db_session.commit()
+    db_session.refresh(student_user)
+
+    student = Student(
+        user_id=student_user.id,
+        roll_number="ST-TT-002",
+        department="CSE",
+        semester=5,
+    )
+    db_session.add(student)
+    db_session.commit()
+    db_session.refresh(student)
+
+    timetable = Timetable(
+        class_id=class_obj.id,
+        day_of_week="Monday",
+        start_time=time(9, 0),
+        end_time=time(10, 0),
+        room="A101",
+    )
+    db_session.add(timetable)
+    db_session.commit()
+    db_session.refresh(timetable)
+
+    assert timetable_repository.can_access_timetable(
+        db_session,
+        timetable,
+        student_user,
+    ) is False
+
 
 def test_holiday_event_cancels_sessions_for_matching_date(db_session: Session):
     class_obj = _seed_teacher_and_class(db_session)

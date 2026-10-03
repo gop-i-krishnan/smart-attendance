@@ -22,4 +22,4 @@ def list_classes(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    return class_repository.get_all_classes(db)
+    return class_repository.get_accessible_classes(db, current_user)

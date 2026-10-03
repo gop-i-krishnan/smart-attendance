@@ -22,7 +22,10 @@ def list_timetables(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    return timetable_repository.get_all_timetables(db, skip=skip, limit=limit)
+    return timetable_repository.get_accessible_timetables(
+    db,
+    current_user,
+)
 
 @router.get("/{timetable_id}", response_model=TimetableResponse)
 def get_timetable_by_id(
@@ -30,9 +33,27 @@ def get_timetable_by_id(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    timetable = timetable_repository.get_timetable_by_id(db, timetable_id)
+    timetable = timetable_repository.get_timetable_by_id(
+        db,
+        timetable_id,
+    )
+
     if not timetable:
-        raise HTTPException(status_code=404, detail="Timetable entry not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Timetable entry not found",
+        )
+
+    if not timetable_repository.can_access_timetable(
+        db,
+        timetable,
+        current_user,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not authorized to access this timetable",
+        )
+
     return timetable
 
 @router.put("/{timetable_id}", response_model=TimetableResponse)
@@ -59,7 +80,55 @@ def get_class_timetable(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    return timetable_repository.get_timetables_by_class(db, class_id)
+    timetables = timetable_repository.get_timetables_by_class(
+        db,
+        class_id,
+    )
+
+    if current_user.role == "admin":
+        return timetables
+
+    if current_user.role == "teacher":
+        if not timetables:
+            return []
+
+        if timetables[0].class_.teacher_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized to access this class timetable",
+            )
+
+        return timetables
+
+    if current_user.role == "student":
+        if not current_user.student:
+            raise HTTPException(
+                status_code=403,
+                detail="Student profile not found",
+            )
+
+        has_enrollment = timetable_repository.get_accessible_timetables(
+            db,
+            current_user,
+        )
+
+        accessible_class_ids = {
+            timetable.class_id
+            for timetable in has_enrollment
+        }
+
+        if class_id not in accessible_class_ids:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not enrolled in this class",
+            )
+
+        return timetables
+
+    raise HTTPException(
+        status_code=403,
+        detail="You are not authorized to access this class timetable",
+    )
 
 @router.get("/teacher/{teacher_id}", response_model=list[TimetableResponse])
 def get_teacher_timetable(
@@ -67,7 +136,28 @@ def get_teacher_timetable(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    return timetable_repository.get_timetables_by_teacher(db, teacher_id)
+    if current_user.role == "admin":
+        return timetable_repository.get_timetables_by_teacher(
+            db,
+            teacher_id,
+        )
+
+    if current_user.role == "teacher":
+        if teacher_id != current_user.id:
+            raise HTTPException(
+                status_code=403,
+                detail="You can only access your own timetable",
+            )
+
+        return timetable_repository.get_timetables_by_teacher(
+            db,
+            current_user.id,
+        )
+
+    raise HTTPException(
+        status_code=403,
+        detail="Students cannot access teacher timetables",
+    )
 
 @router.get("/today", response_model=list[TimetableResponse])
 def get_today_timetable(
@@ -75,15 +165,41 @@ def get_today_timetable(
     current_user=Depends(get_current_user)
 ):
     from datetime import datetime
+    from app.models.timetable import Timetable
+
     today_name = datetime.now().strftime("%A")
-    queryset = db.query(__import__('app.models.timetable', fromlist=['Timetable']).Timetable).filter(
-        __import__('app.models.timetable', fromlist=['Timetable']).Timetable.day_of_week == today_name
-    ).all()
-    if current_user.role == 'teacher':
-        from app.models.class_ import Class
-        filtered = []
-        for entry in queryset:
-            if entry.class_.teacher_id == current_user.id:
-                filtered.append(entry)
-        return filtered
-    return queryset
+
+    queryset = (
+        db.query(Timetable)
+        .filter(Timetable.day_of_week == today_name)
+        .all()
+    )
+
+    if current_user.role == "admin":
+        return queryset
+
+    if current_user.role == "teacher":
+        return [
+            entry
+            for entry in queryset
+            if entry.class_.teacher_id == current_user.id
+        ]
+
+    if current_user.role == "student":
+        if not current_user.student:
+            return []
+
+        accessible = timetable_repository.get_accessible_timetables(
+            db,
+            current_user,
+        )
+
+        accessible_ids = {entry.id for entry in accessible}
+
+        return [
+            entry
+            for entry in queryset
+            if entry.id in accessible_ids
+        ]
+
+    return []

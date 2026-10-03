@@ -2,8 +2,10 @@ from datetime import time
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.class_ import Class
+from app.models.enrollment import Enrollment
 from app.models.timetable import Timetable
 from app.schemas.timetable import TimetableCreate
+from app.models.user import UserRole
 
 
 def _time_overlaps(start_a: time, end_a: time, start_b: time, end_b: time) -> bool:
@@ -41,6 +43,85 @@ def _validate_timetable(db: Session, timetable: TimetableCreate, exclude_id: int
 
 def get_timetable_by_id(db: Session, timetable_id: int):
     return db.query(Timetable).filter(Timetable.id == timetable_id).first()
+
+def can_access_timetable(
+    db: Session,
+    timetable: Timetable,
+    current_user,
+) -> bool:
+    """
+    Check whether the current user can access a timetable entry.
+
+    Admins:
+        Can access all timetable entries.
+
+    Teachers:
+        Can access timetable entries for classes they teach.
+
+    Students:
+        Can access timetable entries for classes in which
+        they have an active enrollment.
+    """
+    if current_user.role == UserRole.admin:
+        return True
+
+    if current_user.role == UserRole.teacher:
+        return timetable.class_.teacher_id == current_user.id
+
+    if current_user.role == UserRole.student:
+        student = current_user.student
+
+        if not student:
+            return False
+
+        enrollment = (
+            db.query(Enrollment)
+            .filter(
+                Enrollment.student_id == student.id,
+                Enrollment.class_id == timetable.class_id,
+                Enrollment.is_active.is_(True),
+            )
+            .first()
+        )
+
+        return enrollment is not None
+
+    return False
+
+def get_accessible_timetables(
+    db: Session,
+    current_user,
+):
+    """
+    Return only timetable entries the current user is authorized to see.
+    """
+    query = db.query(Timetable).join(Class)
+
+    if current_user.role == UserRole.admin:
+        return query.all()
+
+    if current_user.role == UserRole.teacher:
+        return query.filter(
+            Class.teacher_id == current_user.id
+        ).all()
+
+    if current_user.role == UserRole.student:
+        student = current_user.student
+
+        if not student:
+            return []
+
+        return (
+            query
+            .join(Enrollment, Enrollment.class_id == Timetable.class_id)
+            .filter(
+                Enrollment.student_id == student.id,
+                Enrollment.is_active.is_(True),
+            )
+            .all()
+        )
+
+    return []
 
 
 def get_timetables_by_class(db: Session, class_id: int):

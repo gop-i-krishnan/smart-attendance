@@ -47,8 +47,8 @@ def require_teacher(current_user=Depends(get_current_user)):
 
 def require_student_access(
     student_id: int,
-    current_user,
-    db: Session
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Verify that the current user is allowed to access a student's data.
@@ -61,13 +61,13 @@ def require_student_access(
 
     student = student_repository.get_student_by_user_id(
         db,
-        current_user.id
+        current_user.id,
     )
 
     if not student or student.id != student_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Students can only access their own data"
+            detail="Students can only access their own data",
         )
 
     return current_user
