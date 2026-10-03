@@ -13,7 +13,17 @@ class Student(Base):
     roll_number = Column(String, unique=True, nullable=False)
     department = Column(String, nullable=False)
     semester = Column(Integer, nullable=False)
+    section = Column(String, nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="student")
-    attendance_records = relationship("Attendance", back_populates="student")
+
+    attendance_records = relationship(
+        "Attendance",
+        back_populates="student",
+    )
+
+    enrollments = relationship(
+        "Enrollment",
+        back_populates="student",
+    )

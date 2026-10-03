@@ -9,9 +9,19 @@ class Class(Base):
     name = Column(String, nullable=False)          # e.g. "Data Structures"
     code = Column(String, unique=True, nullable=False)  # e.g. "CS301"
     department = Column(String, nullable=False)
+    semester = Column(Integer, nullable=True)           # If NULL, requires explicit enrollment
+    section = Column(String, nullable=True)             # If NULL, all sections match
 
     # Which teacher owns this class
     teacher_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     teacher = relationship("User")
-    attendance_records = relationship("Attendance", back_populates="class_")
+    class_sessions = relationship(
+        "ClassSession",
+        back_populates="class_",
+    )
+
+    enrollments = relationship(
+        "Enrollment",
+        back_populates="class_",
+    )

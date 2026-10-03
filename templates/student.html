@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RSET RSMS — Student Home</title>
+  <meta name="description" content="Student self-service portal to view attendance, risk level and academic schedule.">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --primary:#6366f1; --accent:#06b6d4;
+      --danger:#ef4444; --success:#10b981; --warn:#f59e0b;
+      --bg:#0f0f1a; --surface:#1a1a2e; --surface2:#22223b; --surface3:#2d2d4e;
+      --border:rgba(99,102,241,0.2); --text:#e2e8f0; --muted:#94a3b8;
+    }
+    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+    .layout { display:flex; min-height:100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width:230px; background:var(--surface); border-right:1px solid var(--border);
+      padding:24px 16px; display:flex; flex-direction:column; gap:4px; flex-shrink:0;
+    }
+    .sidebar-brand { display:flex; align-items:center; gap:10px; padding:12px 12px 24px; }
+    .brand-icon { font-size:22px; }
+    .brand-text  { font-size:15px; font-weight:700; }
+    .brand-text span { color:var(--accent); }
+    .nav-item {
+      display:flex; align-items:center; gap:10px; padding:9px 12px;
+      border-radius:8px; cursor:pointer; font-size:13px; font-weight:500;
+      color:var(--muted); transition:all 0.15s;
+    }
+    .nav-item:hover, .nav-item.active { background:var(--surface2); color:var(--text); }
+    .nav-item.active { color:var(--primary); }
+    .sidebar-footer { margin-top:auto; padding-top:16px; border-top:1px solid var(--border); }
+    .user-chip {
+      display:flex; align-items:center; gap:10px; padding:10px 12px;
+      background:var(--surface2); border-radius:10px; font-size:12px;
+    }
+    .avatar {
+      width:32px; height:32px; border-radius:50%;
+      background:linear-gradient(135deg,var(--accent),var(--primary));
+      display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px;
+    }
+
+    /* ── Main ── */
+    .main { flex:1; overflow-y:auto; }
+    .topbar {
+      background:var(--surface); border-bottom:1px solid var(--border);
+      padding:16px 32px; display:flex; justify-content:space-between; align-items:center;
+      position:sticky; top:0; z-index:10;
+    }
+    .topbar h1 { font-size:16px; font-weight:600; }
+    .badge-student { padding:4px 10px; border-radius:99px; font-size:11px; font-weight:600; background:rgba(6,182,212,.15); color:var(--accent); }
+    .logout-btn {
+      padding:6px 14px; background:transparent; border:1px solid var(--border);
+      border-radius:8px; color:var(--muted); cursor:pointer; font-size:12px; font-family:inherit;
+    }
+    .logout-btn:hover { border-color:var(--danger); color:var(--danger); }
+    .content { padding:32px; }
+
+    /* ── Attendance Hero ── */
+    .hero-card {
+      background:linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(6,182,212,0.08) 100%);
+      border:1px solid var(--border); border-radius:20px; padding:32px; margin-bottom:24px;
+      position:relative; overflow:hidden;
+    }
+    .hero-card::before {
+      content:''; position:absolute; top:-40px; right:-40px;
+      width:180px; height:180px; border-radius:50%;
+      background:radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%);
+    }
+    .hero-top { display:flex; justify-content:space-between; align-items:flex-start; }
+    .hero-label { font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .hero-pct { font-size:64px; font-weight:800; line-height:1; margin:8px 0; }
+    .hero-sub { font-size:13px; color:var(--muted); }
+    .hero-right { text-align:right; }
+    .risk-pill {
+      display:inline-flex; align-items:center; gap:6px;
+      padding:8px 20px; border-radius:99px; font-size:14px; font-weight:700;
+    }
+    .risk-safe    { background:rgba(16,185,129,.15); color:var(--success); border:1px solid rgba(16,185,129,.3); }
+    .risk-warning { background:rgba(245,158,11,.15);  color:var(--warn);    border:1px solid rgba(245,158,11,.3); }
+    .risk-danger  { background:rgba(239,68,68,.15);   color:var(--danger);  border:1px solid rgba(239,68,68,.3); }
+
+    .progress-wrap { margin-top:20px; }
+    .pct-bar { width:100%; background:var(--surface2); border-radius:99px; height:10px; overflow:hidden; }
+    .pct-fill { height:100%; border-radius:99px; transition:width 1.2s cubic-bezier(.34,1.56,.64,1); }
+    .pct-marker { position:relative; margin-top:6px; }
+    .pct-marker::before {
+      content:'75%'; position:absolute; left:75%;
+      transform:translateX(-50%); font-size:10px; color:var(--muted);
+    }
+    .pct-marker::after {
+      content:''; position:absolute; left:75%; top:-16px;
+      width:1px; height:10px; background:var(--muted);
+      transform:translateX(-50%);
+    }
+
+    /* ── Stats grid ── */
+    .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:24px; }
+    .stat-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:14px;
+      padding:20px; display:flex; flex-direction:column; gap:8px;
+    }
+    .stat-icon { font-size:22px; }
+    .stat-value { font-size:26px; font-weight:800; }
+    .stat-label { font-size:11px; color:var(--muted); font-weight:500; }
+
+    /* ── Forecast card ── */
+    .forecast-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:14px;
+      padding:20px; margin-bottom:24px; display:grid; grid-template-columns:1fr 1fr; gap:20px;
+    }
+    .forecast-item { display:flex; flex-direction:column; gap:6px; }
+    .forecast-item .f-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+    .forecast-item .f-value { font-size:28px; font-weight:800; }
+
+    /* ── Card ── */
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; margin-bottom:24px; }
+    .card-title { font-size:15px; font-weight:600; margin-bottom:16px; }
+
+    /* ── Sessions ── */
+    .session-row {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:12px 16px; background:var(--surface2); border-radius:10px;
+      margin-bottom:8px; border-left:3px solid var(--border);
+    }
+    .session-row.present  { border-left-color:var(--success); }
+    .session-row.absent   { border-left-color:var(--danger); }
+    .session-row.late     { border-left-color:var(--warn); }
+    .session-row.none     { border-left-color:var(--muted); }
+    .status-chip { padding:3px 10px; border-radius:99px; font-size:10px; font-weight:700; }
+    .chip-present  { background:rgba(16,185,129,.15); color:var(--success); }
+    .chip-absent   { background:rgba(239,68,68,.15);  color:var(--danger); }
+    .chip-late     { background:rgba(245,158,11,.15); color:var(--warn); }
+
+    /* ── Calendar events ── */
+    .cal-row {
+      display:flex; align-items:center; gap:14px; padding:12px 16px;
+      background:var(--surface2); border-radius:10px; margin-bottom:8px;
+    }
+    .cal-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .cal-title { font-size:13px; font-weight:600; }
+    .cal-sub { font-size:11px; color:var(--muted); }
+
+    .section { display:none; }
+    .section.visible { display:block; animation:fadein .2s ease; }
+    @keyframes fadein { from { opacity:0; } }
+    .empty { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+    .loading { text-align:center; padding:30px; color:var(--muted); }
+    .notice-stack { display:flex; flex-direction:column; gap:12px; }
+    .notice-item { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+    .assistant-box { background:linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.08)); border:1px solid var(--border); border-radius:12px; padding:18px; }
+
+    .btn { padding:8px 16px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; border:none; }
+    .btn-ghost { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { border-color:var(--primary); color:var(--primary); }
+
+    /* Leave request form */
+    .leave-form { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+    .leave-form .full { grid-column:1/-1; }
+    .form-field label { font-size:11px; color:var(--muted); display:block; margin-bottom:4px; }
+    .form-field input, .form-field select, .form-field textarea {
+      width:100%; padding:9px 12px; background:var(--surface2); border:1px solid var(--border);
+      border-radius:8px; color:var(--text); font-size:13px; font-family:inherit;
+    }
+    .form-field textarea { resize:vertical; min-height:72px; }
+    .msg-ok  { color:var(--success); font-size:12px; margin-top:8px; }
+    .msg-err { color:var(--danger);  font-size:12px; margin-top:8px; }
+  </style>
+  <link href="/static/portal.css?v=7" rel="stylesheet">
+</head>
+<body class="student-page">
+
+<header class="institutional-masthead">
+  <a class="institution-lockup" href="/student" aria-label="Rajagiri Students Management System home">
+    <span class="institution-mark" aria-hidden="true">RSMS</span>
+    <span><strong class="institution-name">Rajagiri Students' Management System</strong><small class="institution-meta">Rajagiri School of Engineering &amp; Technology · Autonomous</small></span>
+  </a>
+  <div class="masthead-context"><span class="campus-label">Student portal</span><span class="masthead-divider"></span><span class="masthead-detail">Academic year 2026–27</span></div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-section">Student's Corner</div>
+    <div class="nav-item active" data-section="overview" aria-current="page" onclick="showSection('overview')">Home</div>
+    <div class="nav-item" data-section="history" onclick="showSection('history')">Attendance</div>
+    <div class="nav-item" data-section="timetable" onclick="showSection('timetable')">Weekly Timetable</div>
+    <div class="nav-item" data-section="leave" onclick="showSection('leave')">Leave Request</div>
+    <div class="nav-item" data-section="calendar" onclick="showSection('calendar')">Academic Calendar</div>
+    <button class="student-nav-action student-print-action" type="button" onclick="window.print()">Print</button>
+    <div class="sidebar-footer">
+      <span class="student-user-name" id="s-email">—</span>
+      <button class="student-nav-action" type="button" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="page-title">Student Home</h1>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px" id="student-info-label">Student's Corner</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="badge-student">RSMS</span>
+        <button class="logout-btn" onclick="logout()">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Overview section -->
+      <div class="section visible" id="sec-overview">
+        <div class="student-home-grid">
+          <section class="student-home-column" aria-label="Personal attendance summary">
+            <div class="hero-card">
+              <div class="hero-top">
+                <div>
+                  <div class="hero-label">Overall Attendance</div>
+                  <div class="hero-pct" id="hero-pct" style="color:var(--primary)">—%</div>
+                  <div class="hero-sub" id="hero-sub">Loading your data…</div>
+                </div>
+                <div class="hero-right">
+                  <div class="risk-pill risk-safe" id="risk-pill" style="display:none">✅ Safe</div>
+                </div>
+              </div>
+              <div class="progress-wrap">
+                <div class="pct-bar"><div class="pct-fill" id="pct-fill" style="width:0%;background:var(--primary)"></div></div>
+                <div class="pct-marker"></div>
+              </div>
+            </div>
+
+            <div class="student-panel">
+              <div class="student-panel-header">Attendance Summary</div>
+              <div class="student-panel-body">
+                <div class="stats-grid">
+                  <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" id="q-present">—</div><div class="stat-label">Present</div></div>
+                  <div class="stat-card"><div class="stat-icon">❌</div><div class="stat-value" id="q-absent">—</div><div class="stat-label">Absent</div></div>
+                  <div class="stat-card"><div class="stat-icon">🕐</div><div class="stat-value" id="q-late">—</div><div class="stat-label">Late</div></div>
+                </div>
+                <div class="forecast-card">
+                  <div class="forecast-item">
+                    <div class="f-label">Classes I Can Miss</div>
+                    <div class="f-value" id="f-can-miss" style="color:var(--success)">—</div>
+                    <div class="forecast-note">while staying above 75%</div>
+                  </div>
+                  <div class="forecast-item">
+                    <div class="f-label">Classes to Recover</div>
+                    <div class="f-value" id="f-to-recover" style="color:var(--danger)">—</div>
+                    <div class="forecast-note">consecutive attendance needed</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="student-home-column" aria-label="Student activities and announcements">
+            <div class="student-panel">
+              <div class="student-panel-header">Student Activities &amp; Notices</div>
+              <div class="student-panel-body">
+                <div id="student-notices" class="notice-stack"><div class="loading">Loading notices…</div></div>
+              </div>
+            </div>
+
+            <div class="student-panel">
+              <div class="student-panel-header">Academic Guidance</div>
+              <div class="student-panel-body">
+                <div id="student-assistant" class="assistant-box"><div class="loading">Loading guidance…</div></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="student-home-column" aria-label="Student reports and services">
+            <div class="student-panel">
+              <div class="student-panel-header">Reports &amp; Services</div>
+              <div class="student-service-list">
+                <button class="student-service-link" type="button" onclick="openStudentSection('history')"><span>Attendance history</span><span aria-hidden="true">›</span></button>
+                <button class="student-service-link" type="button" onclick="openStudentSection('timetable')"><span>Weekly fixed timetable</span><span aria-hidden="true">›</span></button>
+                <button class="student-service-link" type="button" onclick="openStudentSection('leave')"><span>Leave request</span><span aria-hidden="true">›</span></button>
+                <button class="student-service-link" type="button" onclick="openStudentSection('calendar')"><span>Academic calendar</span><span aria-hidden="true">›</span></button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- History section -->
+      <div class="section" id="sec-history">
+        <div class="card">
+          <div class="card-title">📋 Attendance History</div>
+          <div id="history-list"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+
+      <div class="section" id="sec-timetable">
+        <div class="student-panel">
+          <div class="student-panel-header">Fixed Weekly Timetable</div>
+          <div class="student-panel-body">
+            <div id="student-fixed-timetable"><div class="loading">Loading timetable…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leave section -->
+      <div class="section" id="sec-leave">
+        <div class="card">
+          <div class="card-title">✉️ Apply for Leave</div>
+          <div class="leave-form">
+            <div class="form-field">
+              <label>Leave Type</label>
+              <select id="leave-type">
+                <option value="sick">🤒 Medical / Sick</option>
+                <option value="duty">🏛️ Duty Leave</option>
+                <option value="emergency">🚨 Emergency</option>
+                <option value="other">📝 Other</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>From Date</label>
+              <input type="date" id="leave-from" />
+            </div>
+            <div class="form-field">
+              <label>To Date</label>
+              <input type="date" id="leave-to" />
+            </div>
+            <div class="form-field full">
+              <label>Reason</label>
+              <textarea id="leave-reason" placeholder="Briefly explain your reason for leave…"></textarea>
+            </div>
+          </div>
+          <button class="btn" style="margin-top:14px;background:var(--primary);color:white;padding:10px 24px;" onclick="submitLeave()">Submit Leave Request</button>
+          <div id="leave-msg"></div>
+        </div>
+      </div>
+
+      <!-- Calendar section -->
+      <div class="section" id="sec-calendar">
+        <div class="student-calendar-page">
+          <div class="student-calendar-heading">
+            <div>
+              <div class="student-calendar-eyebrow">Academic services</div>
+              <h2>Students' Academic Calendar</h2>
+            </div>
+            <div class="student-calendar-controls">
+              <button class="student-calendar-button" type="button" onclick="shiftCalendarWindow(-3)">← Previous</button>
+              <label class="calendar-year-label" for="calendar-year">Year</label>
+              <select id="calendar-year" aria-label="Calendar year"></select>
+              <button class="student-calendar-button apply" type="button" onclick="applyCalendarYear()">Apply</button>
+              <button class="student-calendar-button" type="button" onclick="shiftCalendarWindow(3)">Next →</button>
+            </div>
+          </div>
+          <div id="s-calendar-list" class="student-calendar-months"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const API   = window.location.origin + '/api/v1';
+  const token = sessionStorage.getItem('token');
+  const email = sessionStorage.getItem('email');
+  if (!token) window.location.href = '/';
+
+  document.getElementById('s-email').textContent  = email || '—';
+  document.getElementById('student-info-label').textContent = `Logged in user: ${email || 'Student'}`;
+
+  // ── Resolve current student ID using /me endpoint ─────
+  let myStudentId = null;
+  let currentStudentDepartment = null;
+  let studentProfilePromise = null;
+
+  function getCurrentStudentProfile() {
+    if (!studentProfilePromise) {
+      studentProfilePromise = (async () => {
+        const response = await fetch(`${API}/students/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!response.ok) return null;
+        return await response.json();
+      })().catch(() => null);
+    }
+    return studentProfilePromise;
+  }
+
+  async function init() {
+    const h = { 'Authorization': `Bearer ${token}` };
+    loadCalendar();
+    loadStudentNotices();
+    loadAssistantSummary();
+
+    const profile = await getCurrentStudentProfile();
+    if (!profile) {
+      showAttendanceUnavailable();
+      return;
+    }
+    myStudentId = profile.id;
+    currentStudentDepartment = profile.department;
+
+    const analRes = await fetch(`${API}/analytics/student/${profile.id}`, { headers: h });
+    if (!analRes.ok) {
+      showAttendanceUnavailable();
+      return;
+    }
+    const analytics = await analRes.json();
+    renderOverview(analytics);
+    document.getElementById('student-info-label').textContent = `Logged in user: ${email} · ${profile.roll_number} · ${profile.department} · Sem ${profile.semester}`;
+  }
+
+  function showAttendanceUnavailable() {
+    document.getElementById('hero-sub').textContent = 'Your individual attendance summary is not available for this account.';
+    document.getElementById('history-list').innerHTML = '<div class="empty">Your attendance history is not available for this account.</div>';
+  }
+
+  function renderOverview(me) {
+    if (me.total_classes === 0) {
+      document.getElementById('hero-pct').textContent = '—%';
+      document.getElementById('hero-pct').style.color = 'var(--text)';
+      document.getElementById('hero-sub').textContent = 'No attendance data available yet.';
+      document.getElementById('pct-fill').style.width = '0%';
+      document.getElementById('q-present').textContent = '—';
+      document.getElementById('q-absent').textContent = '—';
+      document.getElementById('q-late').textContent = '—';
+      document.getElementById('f-can-miss').textContent = '—';
+      document.getElementById('f-to-recover').textContent = '—';
+      const pill = document.getElementById('risk-pill');
+      pill.style.display = 'inline-flex';
+      pill.className = 'risk-pill risk-safe';
+      pill.style.background = 'rgba(255,255,255,0.1)';
+      pill.style.color = 'var(--muted)';
+      pill.style.borderColor = 'rgba(255,255,255,0.2)';
+      pill.textContent = 'No Data';
+      return;
+    }
+
+    const p = me.percentage;
+    const color = p >= 85 ? 'var(--success)' : p >= 75 ? 'var(--warn)' : 'var(--danger)';
+    document.getElementById('hero-pct').textContent = p + '%';
+    document.getElementById('hero-pct').style.color = color;
+    document.getElementById('hero-sub').textContent = `${me.present + me.late} attended out of ${me.total_classes} total sessions`;
+    document.getElementById('pct-fill').style.width  = p + '%';
+    document.getElementById('pct-fill').style.background = color;
+    document.getElementById('q-present').textContent = me.present;
+    document.getElementById('q-absent').textContent  = me.absent;
+    document.getElementById('q-late').textContent    = me.late;
+    document.getElementById('f-can-miss').textContent  = me.classes_can_miss;
+    document.getElementById('f-to-recover').textContent = me.classes_to_recover > 0 ? me.classes_to_recover : '—';
+    const pill = document.getElementById('risk-pill');
+    pill.style.display = 'inline-flex';
+    const riskMap = {
+      safe:    { cls:'risk-safe',    text:'✅ Safe' },
+      warning: { cls:'risk-warning', text:'⚠️ Warning' },
+      danger:  { cls:'risk-danger',  text:'🚨 Danger' },
+      no_data: { cls:'risk-safe',    text:'No Data' }
+    };
+    const r = riskMap[me.risk] || riskMap['no_data'];
+    pill.className = `risk-pill ${r.cls}`;
+    if (r.text === 'No Data') {
+      pill.style.background = 'rgba(255,255,255,0.1)';
+      pill.style.color = 'var(--muted)';
+      pill.style.borderColor = 'rgba(255,255,255,0.2)';
+    } else {
+      pill.style = "display:inline-flex";
+    }
+    pill.textContent = r.text;
+  }
+
+  async function loadStudentNotices() {
+    const res = await fetch(`${API}/notices/`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const notices = await res.json();
+    const target = document.getElementById('student-notices');
+    if (!res.ok || notices.length === 0) {
+      target.innerHTML = '<div class="empty">No active notices.</div>';
+      return;
+    }
+    target.innerHTML = notices.map(n => `
+      <div class="notice-item">
+        <div style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">${n.notice_type || 'Notice'}</div>
+        <div style="font-size:14px;font-weight:700">${n.title}</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:6px">${n.message}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadAssistantSummary() {
+    const res = await fetch(`${API}/assistant/`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const ai = await res.json();
+    const target = document.getElementById('student-assistant');
+    if (!res.ok) {
+      target.innerHTML = '<div class="empty">AI guidance unavailable.</div>';
+      return;
+    }
+    target.innerHTML = `
+      <div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase">${ai.header}</div>
+      <div style="margin-top:12px;font-size:14px;line-height:1.7;color:var(--text)">${ai.summary}</div>
+      <ul style="margin-top:12px;padding-left:18px;color:var(--muted);font-size:12px;line-height:1.8">
+        ${ai.priority_actions.map(item => `<li>${item}</li>`).join('')}
+      </ul>
+    `;
+  }
+
+  async function loadHistory() {
+    if (!myStudentId) {
+      showAttendanceUnavailable();
+      return;
+    }
+    const res = await fetch(`${API}/attendance/student/${myStudentId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) { document.getElementById('history-list').innerHTML = '<div class="empty">Failed to load.</div>'; return; }
+    const records = await res.json();
+    if (records.length === 0) { document.getElementById('history-list').innerHTML = '<div class="empty">No attendance records yet.</div>'; return; }
+    const statusMap = {
+      present: { cls:'present',  chip:'chip-present', label:'Present' },
+      absent:  { cls:'absent',   chip:'chip-absent',  label:'Absent'  },
+      late:    { cls:'late',     chip:'chip-late',    label:'Late'    }
+    };
+    document.getElementById('history-list').innerHTML = records.map(r => {
+      const s = statusMap[r.status] || { cls:'none', chip:'', label:r.status };
+      return `
+        <div class="session-row ${s.cls}">
+          <div>
+            <div style="font-size:13px;font-weight:600">Session #${r.class_session_id}</div>
+            <div style="font-size:11px;color:var(--muted)">Record #${r.id}</div>
+          </div>
+          <span class="status-chip ${s.chip}">${s.label}</span>
+        </div>`;
+    }).join('');
+  }
+
+  async function submitLeave() {
+    const payload = {
+      leave_type: document.getElementById('leave-type').value,
+      from_date:  document.getElementById('leave-from').value,
+      to_date:    document.getElementById('leave-to').value,
+      reason:     document.getElementById('leave-reason').value
+    };
+    const msg = document.getElementById('leave-msg');
+    if (!payload.from_date || !payload.to_date || !payload.reason) {
+      msg.textContent = '⚠️ Please fill in all fields.'; msg.className = 'msg-err'; return;
+    }
+    const res = await fetch(`${API}/workflows/leave`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (res.ok) { msg.textContent = '✅ Leave request submitted successfully!'; msg.className = 'msg-ok'; }
+    else        { msg.textContent = `❌ ${data.detail || 'Failed.'}`; msg.className = 'msg-err'; }
+  }
+
+  async function loadCalendar() {
+    const res = await fetch(`${API}/calendar/`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const target = document.getElementById('s-calendar-list');
+    if (!res.ok) {
+      target.innerHTML = '<div class="empty">The academic calendar could not be loaded.</div>';
+      return;
+    }
+    calendarEvents = await res.json();
+    const yearSelect = document.getElementById('calendar-year');
+    const currentYear = new Date().getFullYear();
+    yearSelect.innerHTML = Array.from({ length: 7 }, (_, index) => currentYear - 3 + index)
+      .map(year => `<option value="${year}" ${year === calendarYear ? 'selected' : ''}>${year}</option>`)
+      .join('');
+    renderAcademicCalendar();
+  }
+
+  let calendarEvents = [];
+  let calendarYear = new Date().getFullYear();
+  let calendarStartMonth = Math.floor(new Date().getMonth() / 3) * 3;
+
+  function applyCalendarYear() {
+    calendarYear = parseInt(document.getElementById('calendar-year').value, 10);
+    calendarStartMonth = 0;
+    renderAcademicCalendar();
+  }
+
+  function shiftCalendarWindow(monthDelta) {
+    const next = new Date(calendarYear, calendarStartMonth + monthDelta, 1);
+    calendarYear = next.getFullYear();
+    calendarStartMonth = next.getMonth();
+    document.getElementById('calendar-year').value = String(calendarYear);
+    renderAcademicCalendar();
+  }
+
+  function renderAcademicCalendar() {
+    const target = document.getElementById('s-calendar-list');
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const eventTypeLabels = { holiday: 'Holiday', exam: 'Examination', other: 'Institutional event' };
+    const today = new Date();
+    const monthMarkup = [];
+
+    for (let monthOffset = 0; monthOffset < 3; monthOffset += 1) {
+      const monthDate = new Date(calendarYear, calendarStartMonth + monthOffset, 1);
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const firstWeekday = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const weekCount = Math.ceil((firstWeekday + daysInMonth) / 7);
+      const cells = [];
+
+      for (let cellIndex = 0; cellIndex < weekCount * 7; cellIndex += 1) {
+        const dayNumber = cellIndex - firstWeekday + 1;
+        if (dayNumber < 1 || dayNumber > daysInMonth) {
+          cells.push('<td class="calendar-day empty-day" aria-hidden="true"></td>');
+          continue;
+        }
+
+        const monthString = String(month + 1).padStart(2, '0');
+        const dayString = String(dayNumber).padStart(2, '0');
+        const dateString = `${year}-${monthString}-${dayString}`;
+        const dateEvents = calendarEvents.filter(item => item.start_date <= dateString && item.end_date >= dateString);
+        const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === dayNumber;
+        const eventMarkup = dateEvents.map(item => `
+          <div class="calendar-event type-${escapeHtml(item.event_type)}" title="${escapeHtml(item.description || item.title)}">
+            <span class="calendar-event-mark" aria-hidden="true">›</span>${escapeHtml(item.title)}
+          </div>`).join('');
+        cells.push(`
+          <td class="calendar-day${isToday ? ' is-today' : ''}${dateEvents.length ? ' has-events' : ''}">
+            <span class="calendar-date">${dayNumber}</span>
+            <div class="calendar-event-list">${eventMarkup}</div>
+          </td>`);
+      }
+
+      const weekRows = [];
+      for (let row = 0; row < weekCount; row += 1) {
+        weekRows.push(`<tr>${cells.slice(row * 7, row * 7 + 7).join('')}</tr>`);
+      }
+      monthMarkup.push(`
+        <section class="academic-month" aria-label="${monthNames[month]} ${year}">
+          <h3>${monthNames[month]} ${year}</h3>
+          <div class="academic-month-scroll">
+            <table class="academic-month-table">
+              <thead><tr>${weekDays.map(day => `<th scope="col">${day}</th>`).join('')}</tr></thead>
+              <tbody>${weekRows.join('')}</tbody>
+            </table>
+          </div>
+        </section>`);
+    }
+
+    target.innerHTML = monthMarkup.join('');
+  }
+
+  const timetableDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const timetablePeriods = [
+    { start: '08:30', label: '8:30–9:30' },
+    { start: '09:30', label: '9:30–10:30' },
+    { start: '10:45', label: '10:45–11:45' },
+    { start: '11:45', label: '11:45–12:45' },
+    { start: '13:30', label: '1:30–2:30' },
+    { start: '14:30', label: '2:30–3:30' },
+    { start: '15:30', label: '3:30–4:30' }
+  ];
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
+  }
+
+  async function loadFixedTimetable() {
+    const target = document.getElementById('student-fixed-timetable');
+    const profile = await getCurrentStudentProfile();
+    if (!profile) {
+      target.innerHTML = '<div class="empty">A linked student profile is required to view your timetable.</div>';
+      return;
+    }
+    currentStudentDepartment = profile.department;
+    const [timetableResponse, classResponse] = await Promise.all([
+      fetch(`${API}/timetable/?skip=0&limit=100`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API}/classes/`, { headers: { 'Authorization': `Bearer ${token}` } })
+    ]);
+    if (!timetableResponse.ok || !classResponse.ok) {
+      target.innerHTML = '<div class="empty">The fixed timetable could not be loaded.</div>';
+      return;
+    }
+
+    const [timetables, classes] = await Promise.all([timetableResponse.json(), classResponse.json()]);
+    const classesById = new Map(classes.map(classItem => [classItem.id, classItem]));
+    const department = currentStudentDepartment;
+    const departmentClasses = classes.filter(classItem => classItem.department === department);
+    if (!departmentClasses.length) {
+      target.innerHTML = `<div class="empty">No ${escapeHtml(department)} timetable has been published.</div>`;
+      return;
+    }
+    const departmentClassIds = new Set(departmentClasses.map(classItem => classItem.id));
+      const departmentEntries = timetables.filter(entry => departmentClassIds.has(entry.class_id));
+      const byDayAndTime = new Map(departmentEntries.map(entry => [`${entry.day_of_week}|${entry.start_time.slice(0, 5)}`, entry]));
+      const rows = timetableDays.map(day => `
+        <tr>
+          <th scope="row">${day.slice(0, 3).toUpperCase()}</th>
+          ${timetablePeriods.map(period => {
+            const entry = byDayAndTime.get(`${day}|${period.start}`);
+            const classItem = entry ? classesById.get(entry.class_id) : null;
+            if (!classItem) return '<td><span class="no-class">—</span></td>';
+            const teacherCode = classItem.name.match(/\((T-(?:CSE|ECE)-0[12])\)$/)?.[1] || `Teacher ${classItem.teacher_id}`;
+            const subjectName = classItem.name.replace(/\s+\(T-(?:CSE|ECE)-0[12]\)$/, '');
+            return `<td><strong>${escapeHtml(subjectName)}</strong><small>${escapeHtml(teacherCode)}</small></td>`;
+          }).join('')}
+        </tr>`).join('');
+
+    target.innerHTML = `
+      <section class="student-timetable-department" aria-label="${escapeHtml(department)} fixed timetable">
+        <h2>${escapeHtml(department)} — Fixed Timetable</h2>
+        <div class="student-timetable-scroll">
+          <table class="student-timetable-table">
+            <thead><tr><th scope="col">Day</th>${timetablePeriods.map(period => `<th scope="col">${period.label}</th>`).join('')}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </section>`;
+  }
+
+  function logout() { sessionStorage.clear(); window.location.href = '/'; }
+
+  function openStudentSection(id) {
+    document.querySelector(`.nav-item[data-section="${id}"]`)?.click();
+  }
+
+  const sectionTitles = { overview:'Student Home', history:'Attendance', timetable:'Weekly Timetable', leave:'Leave Request', calendar:'Academic Calendar' };
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+    document.querySelectorAll('.nav-item').forEach(n => {
+      n.classList.remove('active');
+      n.removeAttribute('aria-current');
+    });
+    document.getElementById('sec-' + id).classList.add('visible');
+    const activeItem = event.currentTarget.closest('.nav-item');
+    if (activeItem) {
+      activeItem.classList.add('active');
+      activeItem.setAttribute('aria-current', 'page');
+    }
+    document.getElementById('page-title').textContent = sectionTitles[id];
+    if (id === 'history') loadHistory();
+    if (id === 'timetable') loadFixedTimetable();
+  }
+
+  init();
+</script>
+</body>
+</html>

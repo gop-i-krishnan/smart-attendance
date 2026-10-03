@@ -1,1 +1,1 @@
-from app.services import auth_service, attendance_service
+from app.services import auth_service, attendance_service, assistant_service

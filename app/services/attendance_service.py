@@ -1,32 +1,97 @@
-from sqlalchemy.orm import Session
 from datetime import date as date_type
+
+from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from starlette import status as http_status
-from app.repositories import attendance_repository, student_repository, class_repository
+from app.repositories import attendance_repository, student_repository, class_session_repository, enrollment_repository
 from app.models.attendance import AttendanceStatus
+from app.models.class_session import SessionType
+from app.models.user import UserRole
+from app.services.eligibility_service import check_student_class_eligibility
 
-def mark_attendance(db: Session, student_id: int, class_id: int,
-                    attendance_date: date_type, att_status: AttendanceStatus):
-
+def mark_attendance(
+    db: Session,
+    student_id: int,
+    class_session_id: int,
+    att_status: AttendanceStatus,
+    requesting_user=None,
+):
     student = student_repository.get_student_by_id(db, student_id)
     if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-
-    class_ = class_repository.get_class_by_id(db, class_id)
-    if not class_:
-        raise HTTPException(status_code=404, detail="Class not found")
-
-    existing = attendance_repository.get_attendance_record(
-        db, student_id, class_id, attendance_date
-    )
-    if existing:
         raise HTTPException(
-            status_code=http_status.HTTP_409_CONFLICT,
-            detail="Attendance already marked for this student on this date"
+            status_code=404,
+            detail="Student not found"
         )
 
+    session_record = class_session_repository.get_class_session(
+        db, class_session_id
+    )
+    if not session_record:
+        raise HTTPException(
+            status_code=404,
+            detail="Class session not found"
+        )
+    
+    # Prevent attendance from being marked for a future session
+    if session_record.date > date_type.today():
+        raise HTTPException(
+            status_code=400,
+            detail="Attendance cannot be marked for a future session"
+        )
+
+    # 1. Prevent attendance for cancelled sessions
+    if session_record.session_type == SessionType.cancelled:
+        raise HTTPException(
+            status_code=400,
+            detail="Attendance cannot be marked for a cancelled session"
+        )
+
+    # 2. Attendance can only be marked while the session is open
+    if not session_record.is_open:
+        raise HTTPException(
+            status_code=400,
+            detail="Attendance cannot be marked when the session is closed"
+        )
+
+    # 3. Only the assigned teacher or an admin can mark attendance
+    if requesting_user is not None:
+        if (
+            requesting_user.role != UserRole.admin
+            and session_record.actual_teacher_id != requesting_user.id
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="You are not authorized to mark attendance for this session"
+            )
+
+    # 4. Student must be actively eligible for the session's class
+    is_eligible = check_student_class_eligibility(db, student_id, session_record.class_id)
+
+    if not is_eligible:
+        raise HTTPException(
+            status_code=403,
+            detail="Student is not enrolled in this class"
+        )
+
+    # 5. Prevent duplicate attendance
+    existing = attendance_repository.get_attendance_record(
+        db,
+        student_id,
+        class_session_id
+    )
+
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="Attendance already marked for this student in this session"
+        )
+
+    # 6. Create attendance
     return attendance_repository.create_attendance(
-        db, student_id, class_id, attendance_date, att_status
+        db,
+        student_id,
+        class_session_id,
+        att_status
     )
 
 def get_student_summary(db: Session, student_id: int):

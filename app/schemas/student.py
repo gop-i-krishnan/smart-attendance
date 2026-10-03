@@ -5,6 +5,7 @@ class StudentCreate(BaseModel):
     roll_number: str
     department: str
     semester: int
+    section: str | None = None
 
 class StudentOut(BaseModel):
     id: int

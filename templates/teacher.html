@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureTrack X — Teacher Portal</title>
+  <meta name="description" content="Teacher portal for managing class sessions, marking attendance and reviewing analytics.">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary:#6366f1; --primary-dark:#4f46e5; --accent:#06b6d4;
+      --danger:#ef4444; --success:#10b981; --warn:#f59e0b;
+      --bg:#0f0f1a; --surface:#1a1a2e; --surface2:#22223b; --surface3:#2d2d4e;
+      --border:rgba(99,102,241,0.2); --text:#e2e8f0; --muted:#94a3b8;
+    }
+    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────── */
+    .layout { display:flex; min-height:100vh; }
+    .sidebar {
+      width:240px; background:var(--surface); border-right:1px solid var(--border);
+      padding:24px 16px; display:flex; flex-direction:column; gap:4px; flex-shrink:0;
+    }
+    .sidebar-brand { display:flex; align-items:center; gap:10px; padding:12px 12px 24px; }
+    .brand-icon { font-size:22px; }
+    .brand-text { font-size:15px; font-weight:700; }
+    .brand-text span { color:var(--accent); }
+    .nav-section { font-size:10px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; padding:12px 12px 4px; }
+    .nav-item {
+      display:flex; align-items:center; gap:10px; padding:9px 12px;
+      border-radius:8px; cursor:pointer; font-size:13px; font-weight:500;
+      color:var(--muted); transition:all 0.15s;
+    }
+    .nav-item:hover, .nav-item.active { background:var(--surface2); color:var(--text); }
+    .nav-item.active { color:var(--primary); }
+    .sidebar-footer { margin-top:auto; padding-top:16px; border-top:1px solid var(--border); }
+    .user-chip {
+      display:flex; align-items:center; gap:10px; padding:10px 12px;
+      background:var(--surface2); border-radius:10px; font-size:12px;
+    }
+    .avatar {
+      width:32px; height:32px; border-radius:50%;
+      background:linear-gradient(135deg,var(--primary),var(--accent));
+      display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px;
+    }
+
+    /* ── Main ────────────────────────────────────────────────────────── */
+    .main { flex:1; overflow-y:auto; }
+    .topbar {
+      background:var(--surface); border-bottom:1px solid var(--border);
+      padding:16px 32px; display:flex; justify-content:space-between; align-items:center;
+      position:sticky; top:0; z-index:10;
+    }
+    .topbar h1 { font-size:16px; font-weight:600; }
+    .topbar-right { display:flex; align-items:center; gap:12px; }
+    .badge { padding:4px 10px; border-radius:99px; font-size:11px; font-weight:600; }
+    .badge-teacher { background:rgba(99,102,241,0.15); color:var(--primary); }
+    .logout-btn {
+      padding:6px 14px; background:transparent; border:1px solid var(--border);
+      border-radius:8px; color:var(--muted); cursor:pointer; font-size:12px; font-family:inherit;
+    }
+    .logout-btn:hover { border-color:var(--danger); color:var(--danger); }
+
+    .content { padding:32px; }
+
+    /* ── Cards ───────────────────────────────────────────────────────── */
+    .card {
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:16px; padding:24px; margin-bottom:24px;
+    }
+    .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .card-title { font-size:15px; font-weight:600; }
+    .card-subtitle { font-size:12px; color:var(--muted); margin-top:2px; }
+
+    /* ── Stat row ────────────────────────────────────────────────────── */
+    .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+    .stat-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px;
+      display:flex; flex-direction:column; gap:8px;
+    }
+    .stat-icon { font-size:22px; }
+    .stat-value { font-size:28px; font-weight:800; }
+    .stat-label { font-size:11px; color:var(--muted); font-weight:500; text-transform:uppercase; letter-spacing:.05em; }
+
+    /* ── Controls ────────────────────────────────────────────────────── */
+    .controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+    input[type="date"], select {
+      padding:9px 14px; background:var(--surface2); border:1px solid var(--border);
+      border-radius:9px; color:var(--text); font-size:13px; font-family:inherit;
+    }
+    input[type="date"]:focus, select:focus { outline:none; border-color:var(--primary); }
+    .btn { padding:9px 18px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; border:none; transition:all 0.15s; }
+    .btn-primary { background:var(--primary); color:white; }
+    .btn-primary:hover { background:var(--primary-dark); }
+    .btn-success { background:var(--success); color:white; }
+    .btn-danger  { background:var(--danger);  color:white; }
+    .btn-warn    { background:var(--warn);     color:white; }
+    .btn-ghost   { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { border-color:var(--primary); color:var(--primary); }
+
+    /* ── Session cards ───────────────────────────────────────────────── */
+    .sessions-grid { display:flex; flex-direction:column; gap:12px; }
+    .session-card {
+      background:var(--surface2); border:1px solid var(--border); border-radius:12px;
+      padding:16px 20px; display:flex; justify-content:space-between; align-items:center;
+      border-left:4px solid transparent; transition:transform 0.15s;
+    }
+    .session-card:hover { transform:translateX(2px); }
+    .session-card.regular  { border-left-color:var(--success); }
+    .session-card.cancelled{ border-left-color:var(--danger); }
+    .session-card.substitute{ border-left-color:var(--warn); }
+    .session-card.compensatory{ border-left-color:var(--accent); }
+    .session-info .s-title { font-size:14px; font-weight:600; }
+    .session-info .s-meta  { font-size:11px; color:var(--muted); margin-top:3px; }
+    .session-actions { display:flex; gap:8px; }
+    .type-badge {
+      padding:3px 10px; border-radius:99px; font-size:10px; font-weight:700; text-transform:uppercase;
+    }
+    .type-regular    { background:rgba(16,185,129,.15); color:var(--success); }
+    .type-cancelled  { background:rgba(239,68,68,.15);  color:var(--danger); }
+    .type-substitute { background:rgba(245,158,11,.15); color:var(--warn); }
+    .type-compensatory{ background:rgba(6,182,212,.15); color:var(--accent); }
+
+    /* ── Attendance panel ────────────────────────────────────────────── */
+    .mark-panel {
+      background:var(--surface3); border:1px solid var(--primary); border-radius:14px;
+      padding:20px; margin-top:20px; display:none;
+    }
+    .mark-panel.visible { display:block; animation:slidein 0.25s ease; }
+    @keyframes slidein { from { opacity:0; transform:translateY(-8px); } }
+    .mark-panel h3 { font-size:14px; font-weight:600; margin-bottom:14px; color:var(--accent); }
+    .mark-form { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+    .mark-form input, .mark-form select { flex:1; min-width:120px; }
+    .mark-result { margin-top:12px; font-size:13px; padding:10px 14px; border-radius:8px; display:none; }
+    .mark-result.ok  { background:rgba(16,185,129,.1); color:var(--success); border:1px solid rgba(16,185,129,.3); display:block; }
+    .mark-result.err { background:rgba(239,68,68,.1);  color:var(--danger);  border:1px solid rgba(239,68,68,.3);  display:block; }
+
+    /* ── Students risk table ─────────────────────────────────────────── */
+    table { width:100%; border-collapse:collapse; }
+    th { text-align:left; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; padding:10px 12px; border-bottom:1px solid var(--border); }
+    td { padding:12px; border-bottom:1px solid rgba(255,255,255,.04); font-size:13px; }
+    tr:hover td { background:rgba(99,102,241,.04); }
+    .risk-badge { padding:3px 10px; border-radius:99px; font-size:10px; font-weight:700; text-transform:uppercase; }
+    .risk-safe   { background:rgba(16,185,129,.15); color:var(--success); }
+    .risk-warning{ background:rgba(245,158,11,.15); color:var(--warn); }
+    .risk-danger { background:rgba(239,68,68,.15);  color:var(--danger); }
+    .pct-bar { width:100%; background:var(--surface2); border-radius:99px; height:6px; overflow:hidden; }
+    .pct-fill { height:100%; border-radius:99px; transition:width 1s ease; }
+
+    /* ── Tab navigation ──────────────────────────────────────────────── */
+    .tab-nav { display:flex; gap:4px; padding:4px; background:var(--surface2); border-radius:10px; width:fit-content; margin-bottom:24px; }
+    .tab { padding:7px 18px; border-radius:7px; font-size:12px; font-weight:600; cursor:pointer; color:var(--muted); transition:all 0.15s; }
+    .tab.active { background:var(--primary); color:white; }
+
+    .section { display:none; }
+    .section.visible { display:block; animation:fadein 0.2s ease; }
+    @keyframes fadein { from { opacity:0; } }
+
+    .empty { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+    .loading { text-align:center; padding:40px; color:var(--muted); }
+    .notice-stack { display:flex; flex-direction:column; gap:12px; }
+    .notice-item { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; }
+    .assistant-box { background:linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.08)); border:1px solid var(--border); border-radius:12px; padding:18px; }
+  </style>
+  <link href="/static/portal.css?v=9" rel="stylesheet">
+</head>
+<body>
+
+<header class="institutional-masthead">
+  <a class="institution-lockup" href="/teacher" aria-label="Rajagiri School of Engineering and Technology portal">
+    <span class="institution-mark" aria-hidden="true">R</span>
+    <span><strong class="institution-name">Rajagiri School of Engineering &amp; Technology</strong><small class="institution-meta">Autonomous · Kakkanad, Kochi</small></span>
+  </a>
+  <div class="masthead-context"><span class="campus-label">Academic services</span><span class="masthead-divider"></span><span class="masthead-detail">Faculty portal</span></div>
+</header>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🎓</div>
+      <div class="brand-text">RSET <span>RSMS</span></div>
+    </div>
+    <div class="nav-section">Teacher</div>
+    <div class="nav-item active" onclick="showTab('sessions')">📅 Daily Sessions</div>
+    <div class="nav-item" onclick="showTab('students')">📊 Student Analytics</div>
+    <div class="nav-item" onclick="showTab('calendar')">🗓️ Academic Calendar</div>
+
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="avatar" id="avatar-text">T</div>
+        <div>
+          <div style="font-weight:600;font-size:12px" id="sidebar-email">—</div>
+          <div style="color:var(--muted);font-size:10px">Teacher</div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main area -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="page-title">Daily Sessions</h1>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px" id="today-label"></div>
+      </div>
+      <div class="topbar-right">
+        <span class="badge badge-teacher">Teacher</span>
+        <button class="logout-btn" onclick="logout()">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Quick stats -->
+      <div class="stats-row" id="stats-row">
+        <div class="stat-card"><div class="stat-icon">🎯</div><div class="stat-value" id="s-total">—</div><div class="stat-label">Total Students</div></div>
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-value" id="s-safe">—</div><div class="stat-label">Safe ≥ 85%</div></div>
+        <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-value" id="s-warn">—</div><div class="stat-label">Warning 75–85%</div></div>
+        <div class="stat-card"><div class="stat-icon">🚨</div><div class="stat-value" id="s-danger">—</div><div class="stat-label">Danger &lt; 75%</div></div>
+      </div>
+
+      <!-- Sessions tab -->
+      <div class="section visible" id="tab-sessions">
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">📅 Manage Class Sessions</div><div class="card-subtitle">Generate and manage actual sessions from your timetable</div></div>
+          </div>
+          <div class="controls">
+            <input type="date" id="session-date" />
+            <button class="btn btn-primary" onclick="generateSessions()">⚡ Load / Generate Sessions</button>
+          </div>
+          <div class="sessions-grid" id="sessions-grid"><div class="empty">Select a date and click "Generate Sessions".</div></div>
+
+          <!-- Attendance marking panel -->
+          <div class="mark-panel" id="mark-panel">
+            <h3>Manual Attendance — Session <span id="active-session-label"></span></h3>
+            <p class="manual-attendance-help" id="teacher-roster-caption"></p>
+            <div id="teacher-roster-status" class="form-msg"></div>
+            <div id="teacher-attendance-roster"><div class="loading">Choose a class session to load its roster.</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+              <div><div class="card-title">📢 Institutional Notice Board</div><div class="card-subtitle">Announcements that affect staff and students</div></div>
+            </div>
+            <div id="teacher-notices" class="notice-stack"><div class="loading">Loading notices…</div></div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+              <div><div class="card-title">🤖 AI Guidance</div><div class="card-subtitle">Actionable priorities for the day</div></div>
+            </div>
+            <div id="teacher-assistant" class="assistant-box"><div class="loading">Loading guidance…</div></div>
+        </div>
+      </div>
+
+      <!-- Students analytics tab -->
+      <div class="section" id="tab-students">
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">📊 Student Risk Analytics</div><div class="card-subtitle">Attendance percentage, risk level, shortage forecast</div></div>
+            <button class="btn btn-ghost" onclick="loadAnalytics()">🔄 Refresh</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Roll No.</th><th>Name</th><th>Dept.</th>
+                <th>Attendance</th><th>Progress</th>
+                <th>Risk</th><th>Can Miss</th><th>Need</th><th>CSV</th>
+              </tr>
+            </thead>
+            <tbody id="analytics-tbody">
+              <tr><td colspan="9" class="loading">Loading analytics…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Calendar tab -->
+      <div class="section" id="tab-calendar">
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">🗓️ Academic Calendar</div><div class="card-subtitle">Holidays, exams and institutional events</div></div>
+          </div>
+          <div id="calendar-events"><div class="loading">Loading…</div></div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<script>
+  const API = window.location.origin + '/api/v1';
+  const token = sessionStorage.getItem('token');
+  const email = sessionStorage.getItem('email');
+  if (!token) window.location.href = '/';
+
+  let activeSessionId = null;
+  let activeClassId = null;
+
+  // ── Bootstrap ─────────────────────────────────────────────────────────────
+  document.getElementById('sidebar-email').textContent = email || '—';
+  document.getElementById('avatar-text').textContent   = (email||'T')[0].toUpperCase();
+  const today = new Date();
+  document.getElementById('session-date').valueAsDate = today;
+  document.getElementById('today-label').textContent  = today.toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  loadStats();
+  loadCalendarEvents();
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  function logout() { sessionStorage.clear(); window.location.href = '/'; }
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  const tabTitles = { sessions:'Daily Sessions', students:'Student Analytics', calendar:'Academic Calendar' };
+  function showTab(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('visible');
+    event.currentTarget.classList.add('active');
+    document.getElementById('page-title').textContent = tabTitles[id];
+    if (id === 'students') loadAnalytics();
+  }
+
+  // ── Header function ───────────────────────────────────────────────────────
+  function h() { return { 'Authorization': `Bearer ${token}` }; }
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  async function loadStats() {
+    const res = await fetch(`${API}/analytics/risk/all`, { headers: h() });
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('s-total').textContent  = data.length;
+    document.getElementById('s-safe').textContent   = data.filter(s => s.risk === 'safe').length;
+    document.getElementById('s-warn').textContent   = data.filter(s => s.risk === 'warning').length;
+    document.getElementById('s-danger').textContent = data.filter(s => s.risk === 'danger').length;
+    loadTeacherNotices();
+    loadAssistantSummary();
+  }
+
+  async function loadTeacherNotices() {
+    const res = await fetch(`${API}/notices/`, { headers: h() });
+    const notices = await res.json();
+    const target = document.getElementById('teacher-notices');
+    if (!res.ok || notices.length === 0) {
+      target.innerHTML = '<div class="empty">No active notices.</div>';
+      return;
+    }
+    target.innerHTML = notices.map(n => `
+      <div class="notice-item">
+        <div style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">${n.notice_type || 'Notice'}</div>
+        <div style="font-size:14px;font-weight:700">${n.title}</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:6px">${n.message}</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadAssistantSummary() {
+    const res = await fetch(`${API}/assistant/`, { headers: h() });
+    const ai = await res.json();
+    const target = document.getElementById('teacher-assistant');
+    if (!res.ok) {
+      target.innerHTML = '<div class="empty">AI guidance unavailable.</div>';
+      return;
+    }
+    target.innerHTML = `
+      <div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase">${ai.header}</div>
+      <div style="margin-top:12px;font-size:14px;line-height:1.7;color:var(--text)">${ai.summary}</div>
+      <ul style="margin-top:12px;padding-left:18px;color:var(--muted);font-size:12px;line-height:1.8">
+        ${ai.priority_actions.map(item => `<li>${item}</li>`).join('')}
+      </ul>
+    `;
+  }
+
+  // ── Sessions ──────────────────────────────────────────────────────────────
+  async function generateSessions() {
+    const date = document.getElementById('session-date').value;
+    if (!date) return;
+    const grid = document.getElementById('sessions-grid');
+    grid.innerHTML = '<div class="loading">Generating sessions…</div>';
+    const res = await fetch(`${API}/session/generate-daily/${date}`, { method: 'POST', headers: h() });
+    const sessions = await res.json();
+    if (!res.ok || sessions.length === 0) {
+      grid.innerHTML = '<div class="empty">No sessions planned for this date.</div>';
+      return;
+    }
+    grid.innerHTML = sessions.map(s => {
+      const typeClass = s.session_type;
+      const typeBadge = `<span class="type-badge type-${typeClass}">${typeClass}</span>`;
+      const isCancelled = typeClass === 'cancelled';
+      return `
+        <div class="session-card ${typeClass}">
+          <div class="session-info">
+            <div class="s-title">📚 Class ID ${s.class_id} &nbsp;·&nbsp; Session #${s.id}</div>
+            <div class="s-meta">⏰ ${s.start_time} – ${s.end_time} &nbsp;|&nbsp; 🏫 ${s.room || 'N/A'}</div>
+          </div>
+          <div class="session-actions">
+            ${typeBadge}
+            ${!isCancelled ? `<button class="btn btn-primary" style="font-size:11px;padding:5px 12px;" onclick="openMarkPanel(${s.id}, ${s.class_id})">Mark Attendance</button>` : ''}
+            ${!isCancelled ? `<button class="btn btn-danger" style="font-size:11px;padding:5px 12px;" onclick="cancelSess(${s.id})">Cancel</button>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  async function openMarkPanel(sessionId, classId) {
+    activeSessionId = sessionId;
+    activeClassId = classId;
+    document.getElementById('active-session-label').textContent = `#${sessionId}`;
+    document.getElementById('mark-panel').className = 'mark-panel visible';
+    document.getElementById('teacher-attendance-roster').innerHTML = '<div class="loading">Loading class roster…</div>';
+    document.getElementById('mark-panel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await loadTeacherRoster(classId);
+  }
+
+  async function loadTeacherRoster(classId) {
+    const target = document.getElementById('teacher-attendance-roster');
+    const status = document.getElementById('teacher-roster-status');
+
+    const [rosterRes, classesRes, attendanceRes] = await Promise.all([
+      fetch(`${API}/classes/${classId}/students`, { headers: h() }),
+      fetch(`${API}/classes/`, { headers: h() }),
+      fetch(`${API}/attendance/session/${activeSessionId}`, { headers: h() })
+    ]);
+
+    if (!rosterRes.ok || !classesRes.ok || !attendanceRes.ok) {
+      target.innerHTML =
+        '<div class="empty">Could not load the roster for this session.</div>';
+      return;
+    }
+
+    const [roster, classes, records] = await Promise.all([
+      rosterRes.json(),
+      classesRes.json(),
+      attendanceRes.json()
+    ]);
+
+    const classItem = classes.find(item => item.id === classId);
+
+    if (!classItem) {
+      target.innerHTML =
+        '<div class="empty">The class for this session was not found.</div>';
+      return;
+    }
+
+    const recordedByStudent = new Map(
+      records.map(record => [record.student_id, record])
+    );
+
+    document.getElementById('teacher-roster-caption').textContent =
+      `${classItem.name} · ${classItem.department} · ${roster.length} students`;
+
+    status.textContent = '';
+
+    if (roster.length === 0) {
+      target.innerHTML =
+        '<div class="empty">No students are actively enrolled in this class.</div>';
+      return;
+    }
+
+    target.innerHTML = `
+      <div class="manual-roster-scroll">
+        <table class="manual-roster-table">
+          <thead>
+            <tr>
+              <th>Roll Number</th>
+              <th>Department</th>
+              <th>Attendance</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${roster.map(student => {
+              const existing = recordedByStudent.get(student.id);
+              const currentStatus = existing?.status || 'present';
+
+              return `
+                <tr>
+                  <td>${student.roll_number}</td>
+                  <td>${student.department}</td>
+                  <td>
+                    <select id="teacher-status-${student.id}">
+                      <option value="present" ${currentStatus === 'present' ? 'selected' : ''}>Present</option>
+                      <option value="absent" ${currentStatus === 'absent' ? 'selected' : ''}>Absent</option>
+                      <option value="late" ${currentStatus === 'late' ? 'selected' : ''}>Late</option>
+                    </select>
+                  </td>
+                  <td>
+                    ${
+                      existing
+                        ? `<span class="manual-marked">Saved: ${existing.status}</span>`
+                        : `<button class="btn btn-success manual-mark-button" onclick="markRosterStudent(${student.id})">Mark</button>`
+                    }
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+  async function markRosterStudent(studentId) {
+    if (!studentId || !activeSessionId) return;
+    const statusElement = document.getElementById(`teacher-status-${studentId}`);
+    const statusMessage = document.getElementById('teacher-roster-status');
+    const res = await fetch(`${API}/attendance/mark`, {
+      method: 'POST',
+      headers: { ...h(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: studentId, class_session_id: activeSessionId, status: statusElement.value })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      statusMessage.textContent = `Attendance saved for student ${studentId}.`;
+      statusMessage.className = 'form-msg ok';
+      await loadTeacherRoster(activeClassId);
+    } else {
+      statusMessage.textContent = res.status === 409 ? 'This student is already marked for this session.' : (data.detail || 'Failed to mark attendance.');
+      statusMessage.className = 'form-msg err';
+    }
+    loadStats();
+  }
+
+  async function cancelSess(id) {
+    if (!confirm(`Cancel Session #${id}?`)) return;
+    await fetch(`${API}/session/${id}/cancel`, { method: 'PUT', headers: h() });
+    generateSessions();
+  }
+
+  // ── Analytics table ───────────────────────────────────────────────────────
+  async function loadAnalytics() {
+    const tbody = document.getElementById('analytics-tbody');
+    tbody.innerHTML = '<tr><td colspan="9" class="loading">Loading…</td></tr>';
+    const res = await fetch(`${API}/analytics/risk/all`, { headers: h() });
+    if (!res.ok) { tbody.innerHTML = '<tr><td colspan="9" class="empty">Failed to load.</td></tr>'; return; }
+    const data = await res.json();
+    if (data.length === 0) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No students found.</td></tr>'; return; }
+    const pctColor = p => p >= 85 ? 'var(--success)' : p >= 75 ? 'var(--warn)' : 'var(--danger)';
+    tbody.innerHTML = data.map(s => `
+      <tr>
+        <td><strong>${s.roll_number}</strong></td>
+        <td>${s.full_name || '—'}</td>
+        <td>${s.department}</td>
+        <td style="font-weight:600;color:${pctColor(s.percentage)}">${s.percentage}%</td>
+        <td style="width:120px">
+          <div class="pct-bar"><div class="pct-fill" style="width:${s.percentage}%;background:${pctColor(s.percentage)}"></div></div>
+        </td>
+        <td><span class="risk-badge risk-${s.risk}">${s.risk}</span></td>
+        <td style="color:var(--success)">${s.classes_can_miss}</td>
+        <td style="color:var(--danger)">${s.classes_to_recover > 0 ? s.classes_to_recover : '—'}</td>
+        <td><button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;" onclick="downloadCSV(${s.student_id})">⬇ CSV</button></td>
+      </tr>`).join('');
+  }
+
+  async function downloadCSV(studentId) {
+    const res = await fetch(`${API}/analytics/student/${studentId}/csv`, { headers: h() });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `student_${studentId}.csv`; a.click();
+  }
+
+  // ── Calendar ──────────────────────────────────────────────────────────────
+  async function loadCalendarEvents() {
+    const res = await fetch(`${API}/calendar/`, { headers: h() });
+    if (!res.ok) { document.getElementById('calendar-events').innerHTML = '<div class="empty">Failed to load.</div>'; return; }
+    const events = await res.json();
+    const typeColor = { holiday:'var(--danger)', exam:'var(--primary)', other:'var(--accent)' };
+    document.getElementById('calendar-events').innerHTML = events.length === 0
+      ? '<div class="empty">No events.</div>'
+      : events.map(e => `
+        <div style="display:flex;align-items:center;gap:16px;padding:14px;background:var(--surface2);border-radius:10px;margin-bottom:10px;border-left:4px solid ${typeColor[e.event_type] || 'var(--muted)'}">
+          <div style="font-size:20px">${e.event_type==='holiday'?'🏖️':e.event_type==='exam'?'📝':'📌'}</div>
+          <div>
+            <div style="font-size:14px;font-weight:600">${e.title}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${e.start_date} → ${e.end_date} &nbsp;·&nbsp; <span style="text-transform:capitalize;color:${typeColor[e.event_type]}">${e.event_type}</span></div>
+            ${e.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${e.description}</div>` : ''}
+          </div>
+        </div>`).join('');
+  }
+</script>
+</body>
+</html>

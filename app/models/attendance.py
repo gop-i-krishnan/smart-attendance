@@ -1,4 +1,12 @@
-from sqlalchemy import Column, Integer, ForeignKey, Date, Enum, DateTime
+from sqlalchemy import (
+    Column,
+    Integer,
+    ForeignKey,
+    Date,
+    Enum,
+    DateTime,
+    Index,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -12,16 +20,26 @@ class AttendanceStatus(str, enum.Enum):
 class Attendance(Base):
     __tablename__ = "attendance"
 
+    __table_args__ = (
+        Index(
+            "uq_attendance_student_session",
+            "student_id",
+            "class_session_id",
+            unique=True,
+        ),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
 
     # Which student
     student_id = Column(Integer, ForeignKey("students.id"), nullable=False)
 
-    # Which class
-    class_id = Column(Integer, ForeignKey("classes.id"), nullable=False)
-
-    # What date was this taken
-    date = Column(Date, nullable=False)
+    # Which class session did they attend
+    class_session_id = Column(
+        Integer,
+        ForeignKey("class_sessions.id"),
+        nullable=False
+    )
 
     # Was the student present, absent, or late
     status = Column(Enum(AttendanceStatus), nullable=False)
@@ -29,6 +47,5 @@ class Attendance(Base):
     # When was this record created
     marked_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships
     student = relationship("Student", back_populates="attendance_records")
-    class_ = relationship("Class", back_populates="attendance_records")
+    class_session = relationship("ClassSession", back_populates="attendance_records")
