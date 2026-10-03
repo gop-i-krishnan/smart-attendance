@@ -18,7 +18,8 @@ def mark_attendance(
         db,
         student_id=data.student_id,
         class_session_id=data.class_session_id,
-        att_status=data.status
+        att_status=data.status,
+        requesting_user=current_user,
     )
 
 @router.get("/student/{student_id}", response_model=list[AttendanceOut])
