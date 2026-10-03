@@ -20,7 +20,12 @@ def get_detailed_student_analytics(db: Session, student_id: int) -> Dict[str, An
     - Classes needed to recover to 75%
     - Max classes can miss while staying at 75%
     """
-    records = db.query(Attendance).filter(Attendance.student_id == student_id).all()
+    from sqlalchemy.orm import joinedload
+    from app.models.class_ import Class
+
+    records = db.query(Attendance).options(
+        joinedload(Attendance.class_session).joinedload(ClassSession.class_)
+    ).filter(Attendance.student_id == student_id).all()
 
     total = len(records)
     present = sum(1 for r in records if r.status == AttendanceStatus.present)
@@ -30,7 +35,9 @@ def get_detailed_student_analytics(db: Session, student_id: int) -> Dict[str, An
     percentage = round((attended / total) * 100, 2) if total > 0 else 0.0
 
     # Risk classification
-    if percentage >= 85:
+    if total == 0:
+        risk = "no_data"
+    elif percentage >= 85:
         risk = "safe"
     elif percentage >= 75:
         risk = "warning"
@@ -56,6 +63,49 @@ def get_detailed_student_analytics(db: Session, student_id: int) -> Dict[str, An
         buffer = (attended - 0.75 * total) / 0.75
         classes_can_miss = max(0, int(buffer))
 
+    # Subject breakdown
+    subject_stats = {}
+    for r in records:
+        class_obj = r.class_session.class_
+        c_id = class_obj.id
+        if c_id not in subject_stats:
+            subject_stats[c_id] = {
+                "class_id": c_id,
+                "class_name": class_obj.name,
+                "class_code": class_obj.code,
+                "total": 0,
+                "present": 0,
+                "absent": 0,
+                "late": 0,
+            }
+
+        subject_stats[c_id]["total"] += 1
+        if r.status == AttendanceStatus.present:
+            subject_stats[c_id]["present"] += 1
+        elif r.status == AttendanceStatus.absent:
+            subject_stats[c_id]["absent"] += 1
+        elif r.status == AttendanceStatus.late:
+            subject_stats[c_id]["late"] += 1
+
+    subject_breakdown = []
+    for c_id, stats in subject_stats.items():
+        c_tot = stats["total"]
+        c_att = stats["present"] + stats["late"]
+        c_pct = round((c_att / c_tot) * 100, 2) if c_tot > 0 else 0.0
+
+        if c_tot == 0:
+            c_risk = "no_data"
+        elif c_pct >= 85:
+            c_risk = "safe"
+        elif c_pct >= 75:
+            c_risk = "warning"
+        else:
+            c_risk = "danger"
+
+        stats["percentage"] = c_pct
+        stats["risk"] = c_risk
+        subject_breakdown.append(stats)
+
     return {
         "student_id": student_id,
         "total_classes": total,
@@ -66,6 +116,7 @@ def get_detailed_student_analytics(db: Session, student_id: int) -> Dict[str, An
         "risk": risk,
         "classes_to_recover": classes_to_recover,
         "classes_can_miss": classes_can_miss,
+        "subject_breakdown": subject_breakdown,
     }
 
 
@@ -103,9 +154,23 @@ def get_class_analytics(db: Session, class_id: int) -> Dict[str, Any]:
     }
 
 
-def get_all_risk_report(db: Session) -> List[Dict[str, Any]]:
-    """Returns analytics for every student, sorted by risk."""
-    students = student_repository.get_all_students(db)
+def get_all_risk_report(db: Session, current_user=None) -> List[Dict[str, Any]]:
+    """Returns analytics for every student, sorted by risk. Filtered by teacher if provided."""
+    from app.models.user import UserRole
+    if current_user and current_user.role == UserRole.teacher:
+        from app.models.class_ import Class
+        from app.services.eligibility_service import get_students_for_class_filter
+        teacher_classes = db.query(Class).filter(Class.teacher_id == current_user.id).all()
+        student_ids = set()
+        for cls in teacher_classes:
+            students_in_cls = db.query(Student).filter(get_students_for_class_filter(cls)).all()
+            for s in students_in_cls:
+                student_ids.add(s.id)
+        if not student_ids:
+            return []
+        students = db.query(Student).filter(Student.id.in_(student_ids)).all()
+    else:
+        students = student_repository.get_all_students(db)
     results = []
     for s in students:
         analytic = get_detailed_student_analytics(db, s.id)

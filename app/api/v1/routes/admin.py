@@ -57,6 +57,16 @@ def create_user_by_admin(
     
     return user
 
+@router.get("/users", response_model=list[UserOut])
+def list_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin),
+):
+    """View all registered users."""
+    return db.query(User).offset(skip).limit(limit).all()
+
 @router.get("/audit-logs", response_model=list[AuditLogOut])
 def get_audit_logs(
     skip: int = 0,
