@@ -7,7 +7,7 @@ from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.core.database import Base, get_db
 
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from app.models.class_session import SessionType
 from app.models.attendance import AttendanceStatus
@@ -19,6 +19,7 @@ from app.services.auth_service import register_user
 from app.schemas.user import UserCreate
 from app.models.enrollment import Enrollment
 from app.models.student import Student
+
 
 
 # ---------------------------------------------------------
@@ -845,6 +846,135 @@ def test_duplicate_attendance_is_rejected(client, db_session):
 
     assert duplicate_response.status_code == 409
     
+def test_future_session_rejects_attendance(client, db_session):
+    teacher = User(
+        full_name="Future Session Teacher",
+        email="future-session-teacher@example.com",
+        hashed_password=hash_password("teacher123"),
+        role=UserRole.teacher,
+        is_active=True,
+    )
+
+    student_user = User(
+        full_name="Future Session Student",
+        email="future-session-student@example.com",
+        hashed_password=hash_password("student123"),
+        role=UserRole.student,
+        is_active=True,
+    )
+
+    db_session.add_all([teacher, student_user])
+    db_session.commit()
+
+    db_session.refresh(teacher)
+    db_session.refresh(student_user)
+
+    student = Student(
+        user_id=student_user.id,
+        roll_number="FUTURE-001",
+        department="CSE",
+        semester=5,
+    )
+
+    db_session.add(student)
+    db_session.commit()
+    db_session.refresh(student)
+
+    class_obj = Class(
+        name="Future Session Class",
+        code="FUT101",
+        department="CSE",
+        teacher_id=teacher.id,
+    )
+
+    db_session.add(class_obj)
+    db_session.commit()
+    db_session.refresh(class_obj)
+
+    enrollment = Enrollment(
+        student_id=student.id,
+        class_id=class_obj.id,
+        is_active=True,
+    )
+
+    db_session.add(enrollment)
+    db_session.commit()
+
+    timetable = Timetable(
+        class_id=class_obj.id,
+        day_of_week="Monday",
+        start_time=time(10, 0),
+        end_time=time(11, 0),
+        room="FUT101",
+    )
+
+    db_session.add(timetable)
+    db_session.commit()
+    db_session.refresh(timetable)
+
+    # Teacher login
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": "future-session-teacher@example.com",
+            "password": "teacher123",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    token = login_response.json()["access_token"]
+
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    # Create a session for tomorrow.
+    future_date = date.today() + timedelta(days=1)
+
+    session_response = client.post(
+        "/api/v1/session/",
+        json={
+            "class_id": class_obj.id,
+            "timetable_id": timetable.id,
+            "actual_teacher_id": teacher.id,
+            "date": str(future_date),
+            "start_time": "10:00:00",
+            "end_time": "11:00:00",
+            "room": "FUT101",
+            "session_type": SessionType.regular.value,
+        },
+        headers=headers,
+    )
+
+    assert session_response.status_code == 200, session_response.text
+
+    session_id = session_response.json()["id"]
+
+    # Open the future session.
+    open_response = client.post(
+        f"/api/v1/session/{session_id}/open",
+        headers=headers,
+    )
+
+    assert open_response.status_code == 200, open_response.text
+
+    # Try to mark attendance for the future session.
+    attendance_response = client.post(
+        "/api/v1/attendance/mark",
+        json={
+            "student_id": student.id,
+            "class_session_id": session_id,
+            "status": AttendanceStatus.present.value,
+        },
+        headers=headers,
+    )
+
+    assert attendance_response.status_code == 400
+    assert attendance_response.json()["detail"] == (
+        "Attendance cannot be marked for a future session"
+    )
+    
 def test_closed_session_rejects_attendance(client, db_session):
     teacher = User(
         full_name="Closed Session Teacher",
@@ -1547,3 +1677,467 @@ def test_non_admin_cannot_deactivate_enrollment(client, db_session):
     )
 
     assert response.status_code == 403
+    
+def test_admin_can_get_any_class_roster(client, db_session):
+    teacher = User(
+        full_name="Roster Admin Teacher",
+        email="roster-admin-teacher@example.com",
+        hashed_password=hash_password("teacher123"),
+        role=UserRole.teacher,
+        is_active=True,
+    )
+
+    admin = User(
+        full_name="Roster Admin",
+        email="roster-admin@example.com",
+        hashed_password=hash_password("admin123"),
+        role=UserRole.admin,
+        is_active=True,
+    )
+
+    student_user = User(
+        full_name="Roster Student",
+        email="roster-student@example.com",
+        hashed_password=hash_password("student123"),
+        role=UserRole.student,
+        is_active=True,
+    )
+
+    db_session.add_all([teacher, admin, student_user])
+    db_session.commit()
+
+    db_session.refresh(teacher)
+    db_session.refresh(admin)
+    db_session.refresh(student_user)
+
+    student = Student(
+        user_id=student_user.id,
+        roll_number="ROSTER001",
+        department="CSE",
+        semester=5,
+    )
+
+    class_obj = Class(
+        name="Roster Test Class",
+        code="ROSTER101",
+        department="CSE",
+        teacher_id=teacher.id,
+    )
+
+    db_session.add_all([student, class_obj])
+    db_session.commit()
+
+    db_session.refresh(student)
+    db_session.refresh(class_obj)
+
+    enrollment = Enrollment(
+        student_id=student.id,
+        class_id=class_obj.id,
+        is_active=True,
+    )
+
+    db_session.add(enrollment)
+    db_session.commit()
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": "roster-admin@example.com",
+            "password": "admin123",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    token = login_response.json()["access_token"]
+
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    response = client.get(
+        f"/api/v1/classes/{class_obj.id}/students",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    roster = response.json()
+
+    assert len(roster) == 1
+    assert roster[0]["id"] == student.id
+    assert roster[0]["roll_number"] == "ROSTER001"
+    
+def test_assigned_teacher_can_get_own_class_roster(client, db_session):
+    teacher = User(
+        full_name="Assigned Roster Teacher",
+        email="assigned-roster-teacher@example.com",
+        hashed_password=hash_password("teacher123"),
+        role=UserRole.teacher,
+        is_active=True,
+    )
+
+    student_user = User(
+        full_name="Assigned Roster Student",
+        email="assigned-roster-student@example.com",
+        hashed_password=hash_password("student123"),
+        role=UserRole.student,
+        is_active=True,
+    )
+
+    db_session.add_all([teacher, student_user])
+    db_session.commit()
+
+    db_session.refresh(teacher)
+    db_session.refresh(student_user)
+
+    student = Student(
+        user_id=student_user.id,
+        roll_number="ROSTER002",
+        department="ECE",
+        semester=5,
+    )
+
+    class_obj = Class(
+        name="Assigned Roster Class",
+        code="ROSTER102",
+        department="ECE",
+        teacher_id=teacher.id,
+    )
+
+    db_session.add_all([student, class_obj])
+    db_session.commit()
+
+    db_session.refresh(student)
+    db_session.refresh(class_obj)
+
+    enrollment = Enrollment(
+        student_id=student.id,
+        class_id=class_obj.id,
+        is_active=True,
+    )
+
+    db_session.add(enrollment)
+    db_session.commit()
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": "assigned-roster-teacher@example.com",
+            "password": "teacher123",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    token = login_response.json()["access_token"]
+
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    response = client.get(
+        f"/api/v1/classes/{class_obj.id}/students",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    roster = response.json()
+
+    assert len(roster) == 1
+    assert roster[0]["id"] == student.id
+    
+def test_teacher_cannot_get_another_teachers_class_roster(
+    client,
+    db_session,
+):
+    teacher_one = User(
+        full_name="Roster Teacher One",
+        email="roster-teacher-one@example.com",
+        hashed_password=hash_password("teacher123"),
+        role=UserRole.teacher,
+        is_active=True,
+    )
+
+    teacher_two = User(
+        full_name="Roster Teacher Two",
+        email="roster-teacher-two@example.com",
+        hashed_password=hash_password("teacher123"),
+        role=UserRole.teacher,
+        is_active=True,
+    )
+
+    student_user = User(
+        full_name="Foreign Roster Student",
+        email="foreign-roster-student@example.com",
+        hashed_password=hash_password("student123"),
+        role=UserRole.student,
+        is_active=True,
+    )
+
+    db_session.add_all([
+        teacher_one,
+        teacher_two,
+        student_user,
+    ])
+    db_session.commit()
+
+    db_session.refresh(teacher_one)
+    db_session.refresh(teacher_two)
+    db_session.refresh(student_user)
+
+    student = Student(
+        user_id=student_user.id,
+        roll_number="ROSTER003",
+        department="CSE",
+        semester=5,
+    )
+
+    class_obj = Class(
+        name="Teacher One Class",
+        code="ROSTER103",
+        department="CSE",
+        teacher_id=teacher_one.id,
+    )
+
+    db_session.add_all([student, class_obj])
+    db_session.commit()
+
+    db_session.refresh(student)
+    db_session.refresh(class_obj)
+
+    enrollment = Enrollment(
+        student_id=student.id,
+        class_id=class_obj.id,
+        is_active=True,
+    )
+
+    db_session.add(enrollment)
+    db_session.commit()
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": "roster-teacher-two@example.com",
+            "password": "teacher123",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    token = login_response.json()["access_token"]
+
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    response = client.get(
+        f"/api/v1/classes/{class_obj.id}/students",
+        headers=headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "You are not authorized to view this class roster"
+    )
+    
+def test_student_cannot_get_class_roster(client, db_session):
+    teacher = User(
+        full_name="Roster Student Teacher",
+        email="roster-student-teacher@example.com",
+        hashed_password=hash_password("teacher123"),
+        role=UserRole.teacher,
+        is_active=True,
+    )
+
+    student_user = User(
+        full_name="Roster Access Student",
+        email="roster-access-student@example.com",
+        hashed_password=hash_password("student123"),
+        role=UserRole.student,
+        is_active=True,
+    )
+
+    db_session.add_all([teacher, student_user])
+    db_session.commit()
+
+    db_session.refresh(teacher)
+    db_session.refresh(student_user)
+
+    student = Student(
+        user_id=student_user.id,
+        roll_number="ROSTER004",
+        department="CSE",
+        semester=5,
+    )
+
+    class_obj = Class(
+        name="Student Roster Class",
+        code="ROSTER104",
+        department="CSE",
+        teacher_id=teacher.id,
+    )
+
+    db_session.add_all([student, class_obj])
+    db_session.commit()
+
+    db_session.refresh(student)
+    db_session.refresh(class_obj)
+
+    enrollment = Enrollment(
+        student_id=student.id,
+        class_id=class_obj.id,
+        is_active=True,
+    )
+
+    db_session.add(enrollment)
+    db_session.commit()
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": "roster-access-student@example.com",
+            "password": "student123",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    token = login_response.json()["access_token"]
+
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    response = client.get(
+        f"/api/v1/classes/{class_obj.id}/students",
+        headers=headers,
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "You are not authorized to view class rosters"
+    )
+    
+def test_class_roster_excludes_inactive_enrollments(
+    client,
+    db_session,
+):
+    teacher = User(
+        full_name="Inactive Roster Teacher",
+        email="inactive-roster-teacher@example.com",
+        hashed_password=hash_password("teacher123"),
+        role=UserRole.teacher,
+        is_active=True,
+    )
+
+    active_student_user = User(
+        full_name="Active Roster Student",
+        email="active-roster-student@example.com",
+        hashed_password=hash_password("student123"),
+        role=UserRole.student,
+        is_active=True,
+    )
+
+    inactive_student_user = User(
+        full_name="Inactive Roster Student",
+        email="inactive-roster-student@example.com",
+        hashed_password=hash_password("student123"),
+        role=UserRole.student,
+        is_active=True,
+    )
+
+    db_session.add_all([
+        teacher,
+        active_student_user,
+        inactive_student_user,
+    ])
+    db_session.commit()
+
+    db_session.refresh(teacher)
+    db_session.refresh(active_student_user)
+    db_session.refresh(inactive_student_user)
+
+    active_student = Student(
+        user_id=active_student_user.id,
+        roll_number="ROSTER005",
+        department="CSE",
+        semester=5,
+    )
+
+    inactive_student = Student(
+        user_id=inactive_student_user.id,
+        roll_number="ROSTER006",
+        department="CSE",
+        semester=5,
+    )
+
+    class_obj = Class(
+        name="Enrollment Status Class",
+        code="ROSTER105",
+        department="CSE",
+        teacher_id=teacher.id,
+    )
+
+    db_session.add_all([
+        active_student,
+        inactive_student,
+        class_obj,
+    ])
+    db_session.commit()
+
+    db_session.refresh(active_student)
+    db_session.refresh(inactive_student)
+    db_session.refresh(class_obj)
+
+    active_enrollment = Enrollment(
+        student_id=active_student.id,
+        class_id=class_obj.id,
+        is_active=True,
+    )
+
+    inactive_enrollment = Enrollment(
+        student_id=inactive_student.id,
+        class_id=class_obj.id,
+        is_active=False,
+    )
+
+    db_session.add_all([
+        active_enrollment,
+        inactive_enrollment,
+    ])
+    db_session.commit()
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": "inactive-roster-teacher@example.com",
+            "password": "teacher123",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    token = login_response.json()["access_token"]
+
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    response = client.get(
+        f"/api/v1/classes/{class_obj.id}/students",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    roster = response.json()
+
+    roster_student_ids = {
+        student_data["id"]
+        for student_data in roster
+    }
+
+    assert active_student.id in roster_student_ids
+    assert inactive_student.id not in roster_student_ids

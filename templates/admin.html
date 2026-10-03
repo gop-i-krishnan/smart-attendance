@@ -129,9 +129,11 @@
     <div class="nav-item active" onclick="showSec('overview')">🏠 Overview</div>
     <div class="nav-item" onclick="showSec('users')">👥 Manage Users</div>
     <div class="nav-item" onclick="showSec('classes')">📚 Class Structure</div>
+    <div class="nav-item" onclick="showSec('enrollment')">🎓 Enrollment Management</div>
     <div class="nav-item" onclick="showSec('attendance')">✍️ Manual Attendance</div>
     <div class="nav-item" onclick="showSec('calendar')">📅 Academic Calendar</div>
     <div class="nav-item" onclick="showSec('analytics')">📊 Full Analytics</div>
+    <div class="nav-item" onclick="showSec('audit')">🛡️ Audit Logs</div>
     <div class="sidebar-footer">
       <div class="user-chip">
         <div class="avatar">A</div>
@@ -198,11 +200,26 @@
             <div class="field"><label>Secure Password</label><input type="password" id="u-pass" placeholder="Minimum 8 characters" /></div>
             <div class="field">
               <label>System Role</label>
-              <select id="u-role">
+              <select id="u-role" onchange="toggleStudentFields()">
                 <option value="student">Student</option>
                 <option value="teacher">Teacher</option>
                 <option value="admin">Administrator</option>
               </select>
+            </div>
+
+            <div class="field student-only">
+              <label>Roll Number</label>
+              <input id="u-roll" placeholder="e.g. 24CSE001" />
+            </div>
+
+            <div class="field student-only">
+              <label>Department</label>
+              <input id="u-dept" placeholder="e.g. CSE" />
+            </div>
+
+            <div class="field student-only">
+              <label>Semester</label>
+              <input type="number" id="u-semester" min="1" max="8" placeholder="e.g. 5" />
             </div>
           </div>
           <button class="btn btn-primary" style="margin-top:24px" onclick="registerUser()">Create User Account</button>
@@ -229,6 +246,46 @@
             <thead><tr><th>Class ID</th><th>Subject Name</th><th>Course Code</th><th>Dept</th><th>Teacher ID</th></tr></thead>
             <tbody id="classes-tbody"><tr><td colspan="5" class="loading">Loading classes…</td></tr></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Enrollment Management -->
+      <div class="section" id="sec-enrollment">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">🎓 Student Enrollment</div>
+              <div class="card-subtitle">
+                Enroll a student into a class.
+              </div>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label>Student</label>
+              <select id="enroll-student">
+                <option value="">Loading students...</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Class</label>
+              <select id="enroll-class">
+                <option value="">Loading classes...</option>
+              </select>
+            </div>
+          </div>
+
+          <button
+            class="btn btn-primary"
+            style="margin-top:24px"
+            onclick="enrollStudent()"
+          >
+            Enroll Student
+          </button>
+
+          <div class="form-msg" id="enrollment-msg"></div>
         </div>
       </div>
 
@@ -293,6 +350,22 @@
               <tr><th>Roll No.</th><th>Department</th><th>Sem</th><th>Percentage</th><th>Visual</th><th>Risk Profile</th><th>Buffer</th><th>Deficit</th><th>Action</th></tr>
             </thead>
             <tbody id="full-analytics-tbody"><tr><td colspan="9" class="loading">Crunching analytics…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Audit Logs -->
+      <div class="section" id="sec-audit">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🛡️ System Audit Logs</div>
+            <button class="btn btn-ghost" onclick="loadAuditLogs()">🔄 Refresh Logs</button>
+          </div>
+          <table>
+            <thead>
+              <tr><th>Timestamp</th><th>Action</th><th>User ID</th><th>Entity Type</th><th>Entity ID</th><th>Remarks</th></tr>
+            </thead>
+            <tbody id="audit-logs-tbody"><tr><td colspan="6" class="loading">Fetching audit logs...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -466,7 +539,7 @@
     status.className = 'form-msg ok';
   }
 
-  const secTitles = { overview:'System Overview', users:'Identity Management', classes:'Academic Classes', attendance:'Manual Attendance', calendar:'Master Calendar', analytics:'Analytics Engine' };
+  const secTitles = { overview:'System Overview', users:'Identity Management', classes:'Academic Classes', attendance:'Manual Attendance', calendar:'Master Calendar', analytics:'Analytics Engine', audit:'Audit Logs' };
 
   function showSec(id) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
@@ -479,6 +552,7 @@
     if (id === 'attendance') loadAdminSessions();
     if (id === 'calendar')  loadEventsAdmin();
     if (id === 'analytics') loadFullAnalytics();
+    if (id === 'audit') loadAuditLogs();
   }
 
   async function loadNotices() {
@@ -551,19 +625,93 @@
   // ── Users ─────────────────────────────────────────────────────────────────
   async function registerUser() {
     const msg = document.getElementById('user-msg');
-    msg.textContent = 'Processing...'; msg.className = 'form-msg';
+    msg.textContent = 'Processing...';
+    msg.className = 'form-msg';
+
+    const role = document.getElementById('u-role').value;
+
     const payload = {
-      full_name: document.getElementById('u-name').value,
-      email:     document.getElementById('u-email').value,
-      password:  document.getElementById('u-pass').value,
-      role:      document.getElementById('u-role').value
+      full_name: document.getElementById('u-name').value.trim(),
+      email: document.getElementById('u-email').value.trim(),
+      password: document.getElementById('u-pass').value,
+      role: role
     };
-    const res = await fetch(`${API}/auth/register`, {
-      method: 'POST', headers: h({'Content-Type':'application/json'}), body: JSON.stringify(payload)
+
+    // Basic validation
+    if (!payload.full_name || !payload.email || !payload.password) {
+      msg.textContent = '❌ Please fill in name, email, and password.';
+      msg.className = 'form-msg err';
+      return;
+    }
+
+    // Student-specific validation
+    if (role === 'student') {
+      const rollNumber = document.getElementById('u-roll').value.trim();
+      const department = document.getElementById('u-dept').value.trim();
+      const semester = parseInt(document.getElementById('u-semester').value);
+
+      if (!rollNumber || !department || !semester) {
+        msg.textContent = '❌ Please fill in roll number, department, and semester.';
+        msg.className = 'form-msg err';
+        return;
+      }
+
+      if (semester < 1 || semester > 8) {
+        msg.textContent = '❌ Semester must be between 1 and 8.';
+        msg.className = 'form-msg err';
+        return;
+      }
+    }
+
+    // Step 1: Create the user account
+    const userRes = await fetch(`${API}/admin/users`, {
+      method: 'POST',
+      headers: h({'Content-Type': 'application/json'}),
+      body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (res.ok) { msg.textContent = `✅ Account provisioned for ${data.full_name} (ID: ${data.id}).`; msg.className = 'form-msg ok'; }
-    else        { msg.textContent = `❌ ${data.detail || 'Registration failed.'}`; msg.className = 'form-msg err'; }
+
+    const userData = await userRes.json();
+
+    if (!userRes.ok) {
+      msg.textContent = `❌ ${userData.detail || 'User creation failed.'}`;
+      msg.className = 'form-msg err';
+      return;
+    }
+
+    // Step 2: Create the student profile
+    if (role === 'student') {
+      const studentPayload = {
+        user_id: userData.id,
+        roll_number: document.getElementById('u-roll').value.trim(),
+        department: document.getElementById('u-dept').value.trim(),
+        semester: parseInt(document.getElementById('u-semester').value)
+      };
+
+      const studentRes = await fetch(`${API}/students/`, {
+        method: 'POST',
+        headers: h({'Content-Type': 'application/json'}),
+        body: JSON.stringify(studentPayload)
+      });
+
+      const studentData = await studentRes.json();
+
+      if (!studentRes.ok) {
+        msg.textContent =
+          `⚠️ User account created (ID: ${userData.id}), but student profile creation failed: ${studentData.detail || 'Unknown error.'}`;
+        msg.className = 'form-msg err';
+        return;
+      }
+
+      msg.textContent =
+        `✅ Student created successfully. User ID: ${userData.id}, Student ID: ${studentData.id}.`;
+      msg.className = 'form-msg ok';
+      return;
+    }
+
+    // Teacher/Admin
+    msg.textContent =
+      `✅ Account provisioned for ${userData.full_name} (ID: ${userData.id}).`;
+    msg.className = 'form-msg ok';
   }
 
   // ── Classes ───────────────────────────────────────────────────────────────
@@ -666,7 +814,164 @@
     const a = document.createElement('a'); a.href=url; a.download=`student_${id}_report.csv`; a.click();
   }
 
+  async function loadAuditLogs() {
+    const tbody = document.getElementById('audit-logs-tbody');
+    tbody.innerHTML = '<tr><td colspan="6" class="loading">Fetching audit logs...</td></tr>';
+    
+    try {
+      const res = await fetch(`${API}/admin/audit-logs`, { headers: h() });
+      if (!res.ok) {
+        throw new Error('Failed to fetch audit logs');
+      }
+      
+      const logs = await res.json();
+      
+      if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No audit logs found.</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = logs.map(log => `
+        <tr>
+          <td style="font-size:13px;color:var(--muted);">${new Date(log.timestamp).toLocaleString()}</td>
+          <td style="font-weight:600;color:var(--accent);">${log.action}</td>
+          <td>${log.user_id || 'System'}</td>
+          <td>${log.entity_type || '—'}</td>
+          <td>${log.entity_id || '—'}</td>
+          <td style="font-size:14px;">${log.remarks || '—'}</td>
+        </tr>
+      `).join('');
+    } catch (error) {
+      console.error(error);
+      tbody.innerHTML = '<tr><td colspan="6" class="empty" style="color:var(--danger);">Error loading audit logs. Make sure you have Admin access.</td></tr>';
+    }
+  }
+
+  function toggleStudentFields() {
+    const role = document.getElementById('u-role').value;
+    const fields = document.querySelectorAll('.student-only');
+
+    fields.forEach(field => {
+      field.style.display = role === 'student' ? '' : 'none';
+    });
+  }
+
+  async function loadEnrollmentOptions() {
+    const studentSelect = document.getElementById('enroll-student');
+    const classSelect = document.getElementById('enroll-class');
+
+    try {
+      const [studentsRes, classesRes] = await Promise.all([
+        fetch(`${API}/students/`, {
+          headers: h()
+        }),
+        fetch(`${API}/classes/`, {
+          headers: h()
+        })
+      ]);
+
+      const studentsData = await studentsRes.json();
+      const classesData = await classesRes.json();
+
+      if (!studentsRes.ok) {
+        throw new Error(studentsData.detail || 'Failed to load students.');
+      }
+
+      if (!classesRes.ok) {
+        throw new Error(classesData.detail || 'Failed to load classes.');
+      }
+
+      // Populate students
+      studentSelect.innerHTML =
+        '<option value="">Select a student</option>';
+
+      studentsData.forEach(student => {
+        const option = document.createElement('option');
+
+        option.value = student.id;
+        option.textContent =
+          `${student.roll_number} — ${student.department} — Semester ${student.semester}`;
+
+        studentSelect.appendChild(option);
+      });
+
+      // Populate classes
+      classSelect.innerHTML =
+        '<option value="">Select a class</option>';
+
+      classesData.forEach(classItem => {
+        const option = document.createElement('option');
+
+        option.value = classItem.id;
+        option.textContent =
+          `${classItem.code} — ${classItem.name}`;
+
+        classSelect.appendChild(option);
+      });
+
+    } catch (error) {
+      studentSelect.innerHTML =
+        '<option value="">Unable to load students</option>';
+
+      classSelect.innerHTML =
+        '<option value="">Unable to load classes</option>';
+
+      console.error('Enrollment option loading failed:', error);
+    }
+  }
+
+  async function enrollStudent() {
+    const msg = document.getElementById('enrollment-msg');
+    const studentId = document.getElementById('enroll-student').value;
+    const classId = document.getElementById('enroll-class').value;
+
+    msg.textContent = '';
+    msg.className = 'form-msg';
+
+    // Validate selections
+    if (!studentId || !classId) {
+      msg.textContent = 'Please select both a student and a class.';
+      msg.className = 'form-msg err';
+      return;
+    }
+
+    msg.textContent = 'Enrolling student...';
+
+    try {
+      const res = await fetch(`${API}/enrollments/`, {
+        method: 'POST',
+        headers: h({
+          'Content-Type': 'application/json'
+        }),
+        body: JSON.stringify({
+          student_id: parseInt(studentId),
+          class_id: parseInt(classId)
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        msg.textContent = `❌ ${data.detail || 'Enrollment failed.'}`;
+        msg.className = 'form-msg err';
+        return;
+      }
+
+      msg.textContent =
+        `✅ Student enrolled successfully. Enrollment ID: ${data.id}.`;
+      msg.className = 'form-msg ok';
+
+    } catch (error) {
+      console.error('Enrollment failed:', error);
+
+      msg.textContent =
+        '❌ Unable to connect to the server.';
+      msg.className = 'form-msg err';
+    }
+  }
+
   loadOverview();
+  loadEnrollmentOptions();
 </script>
 </body>
 </html>

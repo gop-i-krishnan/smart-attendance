@@ -30,7 +30,7 @@ def generate_daily_sessions(db: Session, target_date: date_type):
     # 2. Get all timetable entries for this day of the week
     planned_timetables = db.query(Timetable).filter(Timetable.day_of_week == day_name).all()
     
-    created_sessions = []
+    sessions_for_date = []
     
     for timetable in planned_timetables:
         # Check if session already exists for this timetable and date to prevent duplicates
@@ -40,6 +40,7 @@ def generate_daily_sessions(db: Session, target_date: date_type):
         ).first()
         
         if existing_session:
+            sessions_for_date.append(existing_session)
             continue
             
         # 3. Generate Session Reality
@@ -65,6 +66,6 @@ def generate_daily_sessions(db: Session, target_date: date_type):
             db_session.is_open = False
             db.commit()
             db.refresh(db_session)
-        created_sessions.append(db_session)
+        sessions_for_date.append(db_session)
         
-    return created_sessions
+    return sessions_for_date

@@ -6,7 +6,7 @@ from app.config import settings
 from app.api.v1.routes import (
     health, auth, attendance, students, classes,
     reports, calendar, timetable, class_session,
-    workflows, analytics, notices, assistant, enrollment
+    workflows, analytics, notices, assistant, enrollment, admin
 )
 app = FastAPI(
     title="SecureTrack X — Academic Attendance Platform",
@@ -23,6 +23,7 @@ app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent.paren
 # ── Core Infrastructure ───────────────────────────────────────────────────────
 app.include_router(health.router,    prefix="/api/v1",             tags=["Health"])
 app.include_router(auth.router,      prefix="/api/v1/auth",         tags=["Auth"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 
 # ── Academic Structure ────────────────────────────────────────────────────────
 app.include_router(students.router,  prefix="/api/v1/students",     tags=["Students"])

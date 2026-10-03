@@ -4,6 +4,7 @@ from app.core.security import hash_password, verify_password, create_access_toke
 from app.schemas.user import UserCreate
 from fastapi import HTTPException, status
 from app.models.user import UserRole
+from app.services.audit_service import log_action
 
 def register_user(db: Session, user_data: UserCreate):
     if user_data.role != UserRole.student:
@@ -22,13 +23,24 @@ def register_user(db: Session, user_data: UserCreate):
 
     hashed = hash_password(user_data.password)
 
-    return user_repository.create_user(
+    user = user_repository.create_user(
         db,
         full_name=user_data.full_name,
         email=user_data.email,
         hashed_password=hashed,
         role=user_data.role
     )
+    
+    log_action(
+        db=db,
+        action="USER_REGISTER",
+        user_id=user.id,
+        entity_type="User",
+        entity_id=user.id,
+        remarks=f"User registered with role {user.role.value}"
+    )
+    
+    return user
 
 def login_user(db: Session, email: str, password: str):
     """Verify credentials and return a JWT token"""
@@ -44,4 +56,14 @@ def login_user(db: Session, email: str, password: str):
             detail="Account is disabled"
         )
     token = create_access_token({"sub": user.email, "role": user.role})
+    
+    log_action(
+        db=db,
+        action="USER_LOGIN",
+        user_id=user.id,
+        entity_type="User",
+        entity_id=user.id,
+        remarks="User logged in successfully"
+    )
+    
     return {"access_token": token, "token_type": "bearer"}

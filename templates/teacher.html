@@ -421,49 +421,89 @@
   async function loadTeacherRoster(classId) {
     const target = document.getElementById('teacher-attendance-roster');
     const status = document.getElementById('teacher-roster-status');
-    const [studentsRes, classesRes, attendanceRes] = await Promise.all([
-      fetch(`${API}/students/`, { headers: h() }),
+
+    const [rosterRes, classesRes, attendanceRes] = await Promise.all([
+      fetch(`${API}/classes/${classId}/students`, { headers: h() }),
       fetch(`${API}/classes/`, { headers: h() }),
       fetch(`${API}/attendance/session/${activeSessionId}`, { headers: h() })
     ]);
-    if (!studentsRes.ok || !classesRes.ok || !attendanceRes.ok) {
-      target.innerHTML = '<div class="empty">Could not load the roster for this session.</div>';
-      return;
-    }
-    const [students, classes, records] = await Promise.all([studentsRes.json(), classesRes.json(), attendanceRes.json()]);
-    const classItem = classes.find(item => item.id === classId);
-    if (!classItem) {
-      target.innerHTML = '<div class="empty">The class for this session was not found.</div>';
-      return;
-    }
-    const recordedByStudent = new Map(records.map(record => [record.student_id, record]));
-    const roster = students.filter(student => student.department === classItem.department);
-    document.getElementById('teacher-roster-caption').textContent = `${classItem.name} · ${classItem.department} · ${roster.length} students`;
-    status.textContent = '';
-    if (roster.length === 0) {
-      target.innerHTML = '<div class="empty">No students are registered in this department.</div>';
-      return;
-    }
-    target.innerHTML = `
-      <div class="manual-roster-scroll"><table class="manual-roster-table">
-        <thead><tr><th>Roll Number</th><th>Department</th><th>Attendance</th><th>Action</th></tr></thead>
-        <tbody>${roster.map(student => {
-          const existing = recordedByStudent.get(student.id);
-          const currentStatus = existing?.status || 'present';
-          return `<tr>
-            <td><strong>${student.roll_number}</strong></td>
-            <td>${student.department}</td>
-            <td><select id="teacher-status-${student.id}" ${existing ? 'disabled' : ''} aria-label="Attendance for ${student.roll_number}">
-              <option value="present" ${currentStatus === 'present' ? 'selected' : ''}>Present</option>
-              <option value="absent" ${currentStatus === 'absent' ? 'selected' : ''}>Absent</option>
-              <option value="late" ${currentStatus === 'late' ? 'selected' : ''}>Late</option>
-            </select></td>
-            <td>${existing ? `<span class="manual-marked">Saved: ${existing.status}</span>` : `<button class="btn btn-success manual-mark-button" onclick="markRosterStudent(${student.id})">Mark</button>`}</td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table></div>`;
-  }
 
+    if (!rosterRes.ok || !classesRes.ok || !attendanceRes.ok) {
+      target.innerHTML =
+        '<div class="empty">Could not load the roster for this session.</div>';
+      return;
+    }
+
+    const [roster, classes, records] = await Promise.all([
+      rosterRes.json(),
+      classesRes.json(),
+      attendanceRes.json()
+    ]);
+
+    const classItem = classes.find(item => item.id === classId);
+
+    if (!classItem) {
+      target.innerHTML =
+        '<div class="empty">The class for this session was not found.</div>';
+      return;
+    }
+
+    const recordedByStudent = new Map(
+      records.map(record => [record.student_id, record])
+    );
+
+    document.getElementById('teacher-roster-caption').textContent =
+      `${classItem.name} · ${classItem.department} · ${roster.length} students`;
+
+    status.textContent = '';
+
+    if (roster.length === 0) {
+      target.innerHTML =
+        '<div class="empty">No students are actively enrolled in this class.</div>';
+      return;
+    }
+
+    target.innerHTML = `
+      <div class="manual-roster-scroll">
+        <table class="manual-roster-table">
+          <thead>
+            <tr>
+              <th>Roll Number</th>
+              <th>Department</th>
+              <th>Attendance</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${roster.map(student => {
+              const existing = recordedByStudent.get(student.id);
+              const currentStatus = existing?.status || 'present';
+
+              return `
+                <tr>
+                  <td>${student.roll_number}</td>
+                  <td>${student.department}</td>
+                  <td>
+                    <select id="teacher-status-${student.id}">
+                      <option value="present" ${currentStatus === 'present' ? 'selected' : ''}>Present</option>
+                      <option value="absent" ${currentStatus === 'absent' ? 'selected' : ''}>Absent</option>
+                      <option value="late" ${currentStatus === 'late' ? 'selected' : ''}>Late</option>
+                    </select>
+                  </td>
+                  <td>
+                    ${
+                      existing
+                        ? `<span class="manual-marked">Saved: ${existing.status}</span>`
+                        : `<button class="btn btn-success manual-mark-button" onclick="markRosterStudent(${student.id})">Mark</button>`
+                    }
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
   async function markRosterStudent(studentId) {
     if (!studentId || !activeSessionId) return;
     const statusElement = document.getElementById(`teacher-status-${studentId}`);

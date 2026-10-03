@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_teacher
 from app.schemas.class_session import ClassSessionCreate, ClassSessionOut
 from app.repositories import class_session_repository
+from app.services.audit_service import log_action
 
 router = APIRouter()
 
@@ -96,7 +97,16 @@ def open_class_session(
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
 ):
-    return class_session_repository.open_session(db, session_id, current_user)
+    session = class_session_repository.open_session(db, session_id, current_user)
+    log_action(
+        db=db,
+        action="SESSION_OPEN",
+        user_id=current_user.id,
+        entity_type="ClassSession",
+        entity_id=session.id,
+        remarks=f"Session {session.id} opened"
+    )
+    return session
 
 @router.post("/{session_id}/close", response_model=ClassSessionOut)
 def close_class_session(
@@ -104,7 +114,16 @@ def close_class_session(
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
 ):
-    return class_session_repository.close_session(db, session_id, current_user)
+    session = class_session_repository.close_session(db, session_id, current_user)
+    log_action(
+        db=db,
+        action="SESSION_CLOSE",
+        user_id=current_user.id,
+        entity_type="ClassSession",
+        entity_id=session.id,
+        remarks=f"Session {session.id} closed"
+    )
+    return session
 
 @router.put("/{session_id}/cancel", response_model=ClassSessionOut)
 def cancel_class_session(
@@ -112,8 +131,16 @@ def cancel_class_session(
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
 ):
-    """Cancel a class session."""
-    return cancel_session(db, session_id, current_user)
+    session = cancel_session(db, session_id, current_user)
+    log_action(
+        db=db,
+        action="SESSION_CANCEL",
+        user_id=current_user.id,
+        entity_type="ClassSession",
+        entity_id=session.id,
+        remarks=f"Session {session.id} cancelled"
+    )
+    return session
 
 @router.put("/{session_id}/substitute", response_model=ClassSessionOut)
 def substitute_class_session(
@@ -122,5 +149,13 @@ def substitute_class_session(
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
 ):
-    """Assign a substitute teacher to a session."""
-    return substitute_session(db, session_id, new_teacher_id, current_user)
+    session = substitute_session(db, session_id, new_teacher_id, current_user)
+    log_action(
+        db=db,
+        action="SESSION_SUBSTITUTE",
+        user_id=current_user.id,
+        entity_type="ClassSession",
+        entity_id=session.id,
+        remarks=f"Session {session.id} substituted to teacher {new_teacher_id}"
+    )
+    return session

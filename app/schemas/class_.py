@@ -4,6 +4,8 @@ class ClassCreate(BaseModel):
     name: str
     code: str
     department: str
+    semester: int | None = None
+    section: str | None = None
     teacher_id: int
 
 class ClassOut(BaseModel):
@@ -11,6 +13,8 @@ class ClassOut(BaseModel):
     name: str
     code: str
     department: str
+    semester: int | None = None
+    section: str | None = None
     teacher_id: int
 
     class Config:

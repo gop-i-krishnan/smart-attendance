@@ -8,3 +8,4 @@ from app.models.timetable import Timetable
 from app.models.class_session import ClassSession, SessionType
 from app.models.notice import Notice
 from app.models.workflows import LeaveRequest, AttendanceCorrection, WorkflowStatus, LeaveType
+from app.models.audit_log import AuditLog

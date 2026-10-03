@@ -5,6 +5,7 @@ from app.core.dependencies import require_student_access, require_teacher
 from app.schemas.attendance import AttendanceCreate, AttendanceOut, AttendanceSummary
 from app.services import attendance_service
 from app.repositories import attendance_repository
+from app.services.audit_service import log_action
 
 router = APIRouter()
 
@@ -14,13 +15,24 @@ def mark_attendance(
     db: Session = Depends(get_db),
     current_user=Depends(require_teacher)
 ):
-    return attendance_service.mark_attendance(
+    result = attendance_service.mark_attendance(
         db,
         student_id=data.student_id,
         class_session_id=data.class_session_id,
         att_status=data.status,
         requesting_user=current_user,
     )
+    
+    log_action(
+        db=db,
+        action="MARK_ATTENDANCE",
+        user_id=current_user.id,
+        entity_type="Attendance",
+        entity_id=result.id,
+        remarks=f"Marked {data.status} for student {data.student_id} in session {data.class_session_id}"
+    )
+    
+    return result
 
 @router.get("/student/{student_id}", response_model=list[AttendanceOut])
 def get_student_attendance(

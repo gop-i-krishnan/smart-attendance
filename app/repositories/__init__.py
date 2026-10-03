@@ -9,4 +9,5 @@ from app.repositories import (
     workflow_repository,
     notice_repository,
     enrollment_repository,
+    audit_log_repository,
 )

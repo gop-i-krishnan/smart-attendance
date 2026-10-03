@@ -4,6 +4,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_admin
 from app.schemas.class_ import ClassCreate, ClassOut
 from app.repositories import class_repository
+from app.schemas.student import StudentOut
 
 router = APIRouter()
 
@@ -14,7 +15,8 @@ def create_class(
     current_user=Depends(require_admin)
 ):
     return class_repository.create_class(
-        db, data.name, data.code, data.department, data.teacher_id
+        db, data.name, data.code, data.department, data.teacher_id,
+        data.semester, data.section
     )
 
 @router.get("/", response_model=list[ClassOut])
@@ -23,3 +25,15 @@ def list_classes(
     current_user=Depends(get_current_user)
 ):
     return class_repository.get_accessible_classes(db, current_user)
+
+@router.get("/{class_id}/students", response_model=list[StudentOut])
+def get_class_roster(
+    class_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    return class_repository.get_class_roster(
+        db,
+        class_id,
+        current_user
+    )

@@ -1,3 +1,5 @@
+from datetime import date as date_type
+
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from starlette import status as http_status
@@ -5,6 +7,7 @@ from app.repositories import attendance_repository, student_repository, class_se
 from app.models.attendance import AttendanceStatus
 from app.models.class_session import SessionType
 from app.models.user import UserRole
+from app.services.eligibility_service import check_student_class_eligibility
 
 def mark_attendance(
     db: Session,
@@ -27,6 +30,13 @@ def mark_attendance(
         raise HTTPException(
             status_code=404,
             detail="Class session not found"
+        )
+    
+    # Prevent attendance from being marked for a future session
+    if session_record.date > date_type.today():
+        raise HTTPException(
+            status_code=400,
+            detail="Attendance cannot be marked for a future session"
         )
 
     # 1. Prevent attendance for cancelled sessions
@@ -54,14 +64,10 @@ def mark_attendance(
                 detail="You are not authorized to mark attendance for this session"
             )
 
-    # 4. Student must be actively enrolled in the session's class
-    enrollment = enrollment_repository.get_active_enrollment(
-        db,
-        student_id,
-        session_record.class_id,
-    )
+    # 4. Student must be actively eligible for the session's class
+    is_eligible = check_student_class_eligibility(db, student_id, session_record.class_id)
 
-    if not enrollment:
+    if not is_eligible:
         raise HTTPException(
             status_code=403,
             detail="Student is not enrolled in this class"
